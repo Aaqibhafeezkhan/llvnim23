@@ -869,3 +869,34 @@ proc LLVMAddNamedMetadataOperand*(M: LLVMModuleRef; Name: cstring; Val: LLVMValu
 proc LLVMAddAlias2*(M: LLVMModuleRef; ValueTy: LLVMTypeRef; AddrSpace: cuint; Aliasee: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
 proc LLVMAliasGetAliasee*(Alias: LLVMValueRef): LLVMValueRef {.llvmImport.}
 proc LLVMAliasSetAliasee*(Alias: LLVMValueRef; Aliasee: LLVMValueRef) {.llvmImport.}
+
+type
+  LLVMMemoryBufferRef* = distinct pointer
+
+definePointerOps(LLVMMemoryBufferRef)
+
+proc LLVMCreateMemoryBufferWithMemoryRangeCopy*(InputData: cstring; InputDataLength: csize_t; BufferName: cstring): LLVMMemoryBufferRef {.llvmImport.}
+proc LLVMGetBufferStart*(MemBuf: LLVMMemoryBufferRef): cstring {.llvmImport.}
+proc LLVMGetBufferSize*(MemBuf: LLVMMemoryBufferRef): csize_t {.llvmImport.}
+proc LLVMDisposeMemoryBuffer*(MemBuf: LLVMMemoryBufferRef) {.llvmImport.}
+
+proc LLVMParseIRInContext2*(ContextRef: LLVMContextRef; MemBuf: LLVMMemoryBufferRef; OutM: var LLVMModuleRef; OutMessage: var cstring): LLVMBool {.llvmImport.}
+
+proc parseIR*(ctx: LLVMContextRef; irText: string; name: string = "ir"): tuple[module: LLVMModuleRef, err: string] =
+  ## Parses textual LLVM IR into a module. The memory buffer is consumed.
+  let buf = LLVMCreateMemoryBufferWithMemoryRangeCopy(irText.cstring, csize_t(irText.len), name.cstring)
+  if buf.isNil:
+    return (LLVMModuleRef(nil), "failed to create memory buffer")
+
+  var modd: LLVMModuleRef
+  var errMsg: cstring
+  let rc = LLVMParseIRInContext2(ctx, buf, modd, errMsg)
+  
+  if not errMsg.isNil:
+    result.err = $errMsg
+    LLVMDisposeMessage(errMsg)
+
+  if rc == LLVMFalse:
+    result.module = modd
+  else:
+    result.module = LLVMModuleRef(nil)

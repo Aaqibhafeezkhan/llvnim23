@@ -2211,7 +2211,7 @@ suite "llvnim23":
     defer: LLVMDisposeModule(m)
     let i32t = LLVMInt32TypeInContext(ctx)
     let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
-    
+
     let fn1 = LLVMAddFunction(m, "fn1", fnTy)
     let bb1 = LLVMAppendBasicBlockInContext(ctx, fn1, "entry")
     let b1 = LLVMCreateBuilderInContext(ctx)
@@ -2239,3 +2239,95 @@ suite "llvnim23":
     let (ok, msg) = verifyModule(m)
     check ok
     check msg.len == 0
+
+  test "irreader: parse simple module":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    
+    let irText = """
+define i32 @add(i32 %a, i32 %b) {
+entry:
+  %sum = add i32 %a, %b
+  ret i32 %sum
+}
+"""
+    let (m, err) = parseIR(ctx, irText, "test.ll")
+    check err.len == 0
+    check not m.isNil
+    defer: LLVMDisposeModule(m)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+    let outIr = LLVMPrintModuleToString(m)
+    check "add i32" in $outIr
+    LLVMDisposeMessage(outIr)
+
+  test "irreader: parse with globals and metadata":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    
+    let irText = """
+@str = private constant [4 x i8] c"abc\00"
+
+define void @f() {
+entry:
+  ret void, !custom !0
+}
+
+!0 = !{!"hello"}
+"""
+    let (m, err) = parseIR(ctx, irText, "meta.ll")
+    check err.len == 0
+    check not m.isNil
+    defer: LLVMDisposeModule(m)
+
+    let g = LLVMGetNamedGlobal(m, "str")
+    check not g.isNil
+
+    let outIr = LLVMPrintModuleToString(m)
+    check "@str" in $outIr
+    check "!custom" in $outIr
+    LLVMDisposeMessage(outIr)
+
+  test "irreader: parse invalid IR returns error":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    
+    let irText = "this is not valid LLVM IR"
+    let (m, err) = parseIR(ctx, irText)
+    check m.isNil
+    check err.len > 0
+
+  test "irreader: parsed module runnable in JIT":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    
+    let irText = """
+define i64 @mul64(i64 %a, i64 %b) {
+entry:
+  %res = mul i64 %a, %b
+  ret i64 %res
+}
+"""
+    let (m, err) = parseIR(ctx, irText)
+    check err.len == 0
+    check not m.isNil
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    
+    let (jit, jitErr) = createLLJIT()
+    check not jit.isNil
+    check jitErr.len == 0
+
+    check addModule(jit, m).len == 0
+
+    let (addrr, lookupErr) = lookup(jit, "mul64")
+    check lookupErr.len == 0
+    check addrr != 0
+
+    type Fn = proc(a, b: int64): int64 {.cdecl.}
+    let f = cast[Fn](addrr)
+    check f(6'i64, 7'i64) == 42'i64
