@@ -2167,3 +2167,75 @@ suite "llvnim23":
     let s = LLVMPrintValueToString(val)
     check "42" in $s
     LLVMDisposeMessage(s)
+
+  test "aliases: add alias and get aliasee":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("alias1", ctx)
+    defer: LLVMDisposeModule(m)
+    let i64t = LLVMInt64TypeInContext(ctx)
+    var params = [i64t, i64t]
+    let fnTy = LLVMFunctionType(i64t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "add64", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    let a = LLVMGetParam(fn, 0)
+    let c = LLVMGetParam(fn, 1)
+    let sum = LLVMBuildAdd(b, a, c, "sum")
+    discard LLVMBuildRet(b, sum)
+
+    let alias = LLVMAddAlias2(m, i64t, 0, fn, "my_add")
+    check not alias.isNil
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+    let ir = LLVMPrintModuleToString(m)
+    check "@my_add = alias" in $ir
+    check "@add64" in $ir
+    LLVMDisposeMessage(ir)
+
+    let aliasee = LLVMAliasGetAliasee(alias)
+    check not aliasee.isNil
+    let s = LLVMPrintValueToString(aliasee)
+    check "@add64" in $s
+    LLVMDisposeMessage(s)
+
+  test "aliases: set aliasee":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("alias2", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    
+    let fn1 = LLVMAddFunction(m, "fn1", fnTy)
+    let bb1 = LLVMAppendBasicBlockInContext(ctx, fn1, "entry")
+    let b1 = LLVMCreateBuilderInContext(ctx)
+    LLVMPositionBuilderAtEnd(b1, bb1)
+    discard LLVMBuildRet(b1, LLVMConstInt(i32t, 1, LLVMFalse))
+    LLVMDisposeBuilder(b1)
+
+    let fn2 = LLVMAddFunction(m, "fn2", fnTy)
+    let bb2 = LLVMAppendBasicBlockInContext(ctx, fn2, "entry")
+    let b2 = LLVMCreateBuilderInContext(ctx)
+    LLVMPositionBuilderAtEnd(b2, bb2)
+    discard LLVMBuildRet(b2, LLVMConstInt(i32t, 2, LLVMFalse))
+    LLVMDisposeBuilder(b2)
+
+    let alias = LLVMAddAlias2(m, fnTy, 0, fn1, "my_alias")
+    check not alias.isNil
+
+    LLVMAliasSetAliasee(alias, fn2)
+
+    let aliasee = LLVMAliasGetAliasee(alias)
+    let s = LLVMPrintValueToString(aliasee)
+    check "@fn2" in $s
+    LLVMDisposeMessage(s)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0

@@ -865,3 +865,7 @@ proc LLVMGetMDKindID*(Name: cstring; SLen: cuint): cuint {.llvmImport.}
 
 proc LLVMSetMetadata*(Val: LLVMValueRef; KindID: cuint; Node: LLVMValueRef) {.llvmImport.}
 proc LLVMAddNamedMetadataOperand*(M: LLVMModuleRef; Name: cstring; Val: LLVMValueRef) {.llvmImport.}
+
+proc LLVMAddAlias2*(M: LLVMModuleRef; ValueTy: LLVMTypeRef; AddrSpace: cuint; Aliasee: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMAliasGetAliasee*(Alias: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMAliasSetAliasee*(Alias: LLVMValueRef; Aliasee: LLVMValueRef) {.llvmImport.}
