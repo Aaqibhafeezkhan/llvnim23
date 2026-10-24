@@ -766,3 +766,15 @@ proc LLVMBuildCatchPad*(Builder: LLVMBuilderRef; ParentPad: LLVMValueRef; Args: 
 proc LLVMBuildCleanupPad*(Builder: LLVMBuilderRef; ParentPad: LLVMValueRef; Args: ptr LLVMValueRef; NumArgs: cuint; Name: cstring): LLVMValueRef {.llvmImport.}
 proc LLVMBuildCatchRet*(Builder: LLVMBuilderRef; CatchPad: LLVMValueRef; BB: LLVMBasicBlockRef): LLVMValueRef {.llvmImport.}
 proc LLVMBuildCleanupRet*(Builder: LLVMBuilderRef; CatchPad: LLVMValueRef; BB: LLVMBasicBlockRef): LLVMValueRef {.llvmImport.}
+
+type
+  LLVMTargetMachineRef* = distinct pointer
+  LLVMPassBuilderOptionsRef* = distinct pointer
+
+definePointerOps(LLVMTargetMachineRef)
+definePointerOps(LLVMPassBuilderOptionsRef)
+
+proc LLVMCreatePassBuilderOptions*(): LLVMPassBuilderOptionsRef {.llvmImport.}
+proc LLVMDisposePassBuilderOptions*(Options: LLVMPassBuilderOptionsRef) {.llvmImport.}
+proc LLVMRunPasses*(M: LLVMModuleRef; Passes: cstring; TM: LLVMTargetMachineRef; Options: LLVMPassBuilderOptionsRef): LLVMErrorRef {.llvmImport.}
+proc LLVMRunPassesOnFunction*(F: LLVMValueRef; Passes: cstring; TM: LLVMTargetMachineRef; Options: LLVMPassBuilderOptionsRef): LLVMErrorRef {.llvmImport.}

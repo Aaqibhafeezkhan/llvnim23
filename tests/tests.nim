@@ -1832,3 +1832,98 @@ suite "llvnim23":
     let s = LLVMPrintValueToString(cp)
     check "cleanuppad" in $s
     LLVMDisposeMessage(s)
+
+  test "passes: default<O1> folds constants":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("opt1", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    let a = LLVMConstInt(i32t, 10, LLVMFalse)
+    let c = LLVMConstInt(i32t, 32, LLVMFalse)
+    let sum = LLVMBuildAdd(b, a, c, "sum")
+    discard LLVMBuildRet(b, sum)
+    
+    let opts = LLVMCreatePassBuilderOptions()
+    defer: LLVMDisposePassBuilderOptions(opts)
+    
+    let err = LLVMRunPasses(m, "default<O1>", LLVMTargetMachineRef(nil), opts)
+    check err.isNil
+    
+    let ir = LLVMPrintModuleToString(m)
+    check "ret i32 42" in $ir
+    check "add i32" notin $ir
+    LLVMDisposeMessage(ir)
+
+  test "passes: instcombine removes identity add":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("opt2", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var params = [i32t]
+    let fnTy = LLVMFunctionType(i32t, addr params[0], 1, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    let x = LLVMGetParam(fn, 0)
+    let sum = LLVMBuildAdd(b, x, LLVMConstInt(i32t, 0, LLVMFalse), "sum")
+    discard LLVMBuildRet(b, sum)
+    
+    let opts = LLVMCreatePassBuilderOptions()
+    defer: LLVMDisposePassBuilderOptions(opts)
+    
+    let err = LLVMRunPasses(m, "instcombine", LLVMTargetMachineRef(nil), opts)
+    check err.isNil
+    
+    let ir = LLVMPrintModuleToString(m)
+    check "ret i32 %0" in $ir
+    check "add i32" notin $ir
+    LLVMDisposeMessage(ir)
+
+  test "passes: runPassesOnFunction":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("opt3", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    discard LLVMBuildRet(b, LLVMBuildAdd(b, LLVMConstInt(i32t, 1, LLVMFalse), LLVMConstInt(i32t, 2, LLVMFalse), "sum"))
+    
+    let opts = LLVMCreatePassBuilderOptions()
+    defer: LLVMDisposePassBuilderOptions(opts)
+    
+    let err = LLVMRunPassesOnFunction(fn, "instcombine", LLVMTargetMachineRef(nil), opts)
+    check err.isNil
+    
+    let ir = LLVMPrintModuleToString(m)
+    check "ret i32 3" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "passes: invalid pass name returns error":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("opt4", ctx)
+    defer: LLVMDisposeModule(m)
+    let opts = LLVMCreatePassBuilderOptions()
+    defer: LLVMDisposePassBuilderOptions(opts)
+    
+    let err = LLVMRunPasses(m, "totally-invalid-pass", LLVMTargetMachineRef(nil), opts)
+    check not err.isNil
+    
+    let msg = LLVMGetErrorMessage(err)
+    check "unknown" in $msg or "invalid" in $msg or "pass" in $msg
+    LLVMDisposeErrorMessage(msg)
