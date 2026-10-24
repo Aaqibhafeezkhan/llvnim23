@@ -849,3 +849,19 @@ proc addStringAttribute*(ctx: LLVMContextRef; fn: LLVMValueRef; key, value: stri
   ## Adds a string attribute (e.g. "target-cpu"="skylake") to a function.
   let attr = LLVMCreateStringAttribute(ctx, key.cstring, cuint(key.len), value.cstring, cuint(value.len))
   LLVMAddAttributeAtIndex(fn, LLVMAttributeFunctionIndex, attr)
+
+type
+  LLVMMetadataRef* = distinct pointer
+
+definePointerOps(LLVMMetadataRef)
+
+proc LLVMMDStringInContext2*(C: LLVMContextRef; Str: cstring; SLen: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMMDNodeInContext2*(C: LLVMContextRef; MDs: ptr LLVMMetadataRef; Count: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMMetadataAsValue*(C: LLVMContextRef; MD: LLVMMetadataRef): LLVMValueRef {.llvmImport.}
+proc LLVMValueAsMetadata*(Val: LLVMValueRef): LLVMMetadataRef {.llvmImport.}
+
+proc LLVMGetMDKindIDInContext*(C: LLVMContextRef; Name: cstring; SLen: cuint): cuint {.llvmImport.}
+proc LLVMGetMDKindID*(Name: cstring; SLen: cuint): cuint {.llvmImport.}
+
+proc LLVMSetMetadata*(Val: LLVMValueRef; KindID: cuint; Node: LLVMValueRef) {.llvmImport.}
+proc LLVMAddNamedMetadataOperand*(M: LLVMModuleRef; Name: cstring; Val: LLVMValueRef) {.llvmImport.}

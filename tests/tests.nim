@@ -2096,3 +2096,74 @@ suite "llvnim23":
     let ir3 = LLVMPrintModuleToString(m)
     check "noinline" notin $ir3
     LLVMDisposeMessage(ir3)
+
+  test "metadata: attach string metadata to instruction":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("md1", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var params = [i32t]
+    let fnTy = LLVMFunctionType(i32t, addr params[0], 1, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    
+    let x = LLVMGetParam(fn, 0)
+    let sum = LLVMBuildAdd(b, x, LLVMConstInt(i32t, 1, LLVMFalse), "sum")
+    discard LLVMBuildRet(b, sum)
+    
+    # Create metadata string: !0 = !{!"my_custom_tag"}
+    let mdStr = LLVMMDStringInContext2(ctx, "my_custom_tag", csize_t(13))
+    var mdArr = [mdStr]
+    let mdNode = LLVMMDNodeInContext2(ctx, addr mdArr[0], csize_t(1))
+    let mdVal = LLVMMetadataAsValue(ctx, mdNode)
+    
+    # Attach to instruction
+    let kind = LLVMGetMDKindIDInContext(ctx, "custom.md", cuint(9))
+    check kind > 0
+    LLVMSetMetadata(sum, kind, mdVal)
+    
+    let ir = LLVMPrintModuleToString(m)
+    check "!custom.md" in $ir
+    check "my_custom_tag" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "metadata: named module metadata":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("md2", ctx)
+    defer: LLVMDisposeModule(m)
+    
+    # Create metadata node: !{!"wchar_size", i32 4}
+    let s1 = LLVMMDStringInContext2(ctx, "wchar_size", csize_t(11))
+    let v = LLVMConstInt(LLVMInt32TypeInContext(ctx), 4, LLVMFalse)
+    let m1 = LLVMValueAsMetadata(v)
+    var mdArr = [s1, m1]
+    let mdNode = LLVMMDNodeInContext2(ctx, addr mdArr[0], csize_t(2))
+    let mdVal = LLVMMetadataAsValue(ctx, mdNode)
+    
+    # Attach as named metadata: !llvm.module.flags
+    LLVMAddNamedMetadataOperand(m, "llvm.module.flags", mdVal)
+    
+    let ir = LLVMPrintModuleToString(m)
+    check "!llvm.module.flags" in $ir
+    check "wchar_size" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "metadata: value as metadata roundtrip":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let c = LLVMConstInt(i32t, 42, LLVMFalse)
+    
+    let md = LLVMValueAsMetadata(c)
+    check not md.isNil
+    
+    let val = LLVMMetadataAsValue(ctx, md)
+    check not val.isNil
+    let s = LLVMPrintValueToString(val)
+    check "42" in $s
+    LLVMDisposeMessage(s)
