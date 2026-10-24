@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.0"
+version       = "0.1.1"
 author        = "xlebore3o4ka"
 description   = "Nim bindings for the LLVM-C API, version 23.1.1"
 license       = "AGPL-3.0"
