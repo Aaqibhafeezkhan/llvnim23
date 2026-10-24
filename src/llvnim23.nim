@@ -823,3 +823,29 @@ proc LLVMSetTarget*(M: LLVMModuleRef; Triple: cstring) {.llvmImport.}
 proc LLVMSetDataLayout*(M: LLVMModuleRef; DataLayoutStr: cstring) {.llvmImport.}
 
 proc LLVMTargetMachineEmitToFile*(T: LLVMTargetMachineRef; M: LLVMModuleRef; Filename: cstring; codegen: LLVMCodeGenFileType; ErrorMessage: var cstring): LLVMBool {.llvmImport.}
+
+type
+  LLVMAttributeRef* = distinct pointer
+
+definePointerOps(LLVMAttributeRef)
+
+const
+  LLVMAttributeReturnIndex* = 0.cuint
+  LLVMAttributeFunctionIndex* = high(cuint)
+
+proc LLVMCreateEnumAttribute*(C: LLVMContextRef; KindID: cuint; Val: uint64): LLVMAttributeRef {.llvmImport.}
+proc LLVMCreateStringAttribute*(C: LLVMContextRef; K: cstring; KLength: cuint; V: cstring; VLength: cuint): LLVMAttributeRef {.llvmImport.}
+proc LLVMGetEnumAttributeKindForName*(Name: cstring; SLen: csize_t): cuint {.llvmImport.}
+proc LLVMGetEnumAttributeKind*(A: LLVMAttributeRef): cuint {.llvmImport.}
+proc LLVMGetEnumAttributeValue*(A: LLVMAttributeRef): uint64 {.llvmImport.}
+
+proc LLVMAddAttributeAtIndex*(F: LLVMValueRef; Idx: cuint; A: LLVMAttributeRef) {.llvmImport.}
+proc LLVMRemoveEnumAttributeAtIndex*(F: LLVMValueRef; Idx: cuint; KindID: cuint) {.llvmImport.}
+proc LLVMGetEnumAttributeAtIndex*(F: LLVMValueRef; Idx: cuint; KindID: cuint): LLVMAttributeRef {.llvmImport.}
+
+proc LLVMAddTargetDependentFunctionAttr*(Fn: LLVMValueRef; A: cstring; V: cstring) {.llvmImport.}
+
+proc addStringAttribute*(ctx: LLVMContextRef; fn: LLVMValueRef; key, value: string) =
+  ## Adds a string attribute (e.g. "target-cpu"="skylake") to a function.
+  let attr = LLVMCreateStringAttribute(ctx, key.cstring, cuint(key.len), value.cstring, cuint(value.len))
+  LLVMAddAttributeAtIndex(fn, LLVMAttributeFunctionIndex, attr)

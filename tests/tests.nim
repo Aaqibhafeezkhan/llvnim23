@@ -1995,3 +1995,104 @@ suite "llvnim23":
       let objInfo = getFileInfo(objFile)
       check objInfo.size > 0
       removeFile(objFile)
+
+  test "attributes: enum attribute noinline":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("attrs1", ctx)
+    defer: LLVMDisposeModule(m)
+    let voidt = LLVMVoidTypeInContext(ctx)
+    let fnTy = LLVMFunctionType(voidt, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+
+    let kind = LLVMGetEnumAttributeKindForName("noinline", csize_t(8))
+    check kind > 0
+    let attr = LLVMCreateEnumAttribute(ctx, kind, 0)
+    check not attr.isNil
+    LLVMAddAttributeAtIndex(fn, LLVMAttributeFunctionIndex, attr)
+
+    let ir = LLVMPrintModuleToString(m)
+    check "noinline" in $ir
+    LLVMDisposeMessage(ir)
+
+    let got = LLVMGetEnumAttributeAtIndex(fn, LLVMAttributeFunctionIndex, kind)
+    check not got.isNil
+    check LLVMGetEnumAttributeKind(got) == kind
+
+  test "attributes: enum attribute with value (align)":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("attrs2", ctx)
+    defer: LLVMDisposeModule(m)
+    let voidt = LLVMVoidTypeInContext(ctx)
+    let fnTy = LLVMFunctionType(voidt, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+
+    let kind = LLVMGetEnumAttributeKindForName("align", csize_t(5))
+    let attr = LLVMCreateEnumAttribute(ctx, kind, 8)
+    LLVMAddAttributeAtIndex(fn, LLVMAttributeFunctionIndex, attr)
+
+    let ir = LLVMPrintModuleToString(m)
+    check "align 8" in $ir
+    LLVMDisposeMessage(ir)
+
+    let got = LLVMGetEnumAttributeAtIndex(fn, LLVMAttributeFunctionIndex, kind)
+    check LLVMGetEnumAttributeValue(got) == 8'u64
+
+  test "attributes: string attribute":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("attrs3", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+
+    let attr = LLVMCreateStringAttribute(ctx, "target-cpu", cuint(10), "skylake", cuint(7))
+    LLVMAddAttributeAtIndex(fn, LLVMAttributeFunctionIndex, attr)
+
+    let ir = LLVMPrintModuleToString(m)
+    check "target-cpu" in $ir
+    check "skylake" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "attributes: addStringAttribute helper":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("attrs4", ctx)
+    defer: LLVMDisposeModule(m)
+    let voidt = LLVMVoidTypeInContext(ctx)
+    let fnTy = LLVMFunctionType(voidt, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+
+    addStringAttribute(ctx, fn, "target-features", "+sse2")
+    let ir = LLVMPrintModuleToString(m)
+    check "+sse2" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "attributes: target-dependent and removal":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("attrs5", ctx)
+    defer: LLVMDisposeModule(m)
+    let voidt = LLVMVoidTypeInContext(ctx)
+    let fnTy = LLVMFunctionType(voidt, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+
+    LLVMAddTargetDependentFunctionAttr(fn, "frame-pointer", "all")
+    let ir1 = LLVMPrintModuleToString(m)
+    check "frame-pointer" in $ir1
+    LLVMDisposeMessage(ir1)
+
+    let kind = LLVMGetEnumAttributeKindForName("noinline", csize_t(8))
+    let attr = LLVMCreateEnumAttribute(ctx, kind, 0)
+    LLVMAddAttributeAtIndex(fn, LLVMAttributeFunctionIndex, attr)
+
+    let ir2 = LLVMPrintModuleToString(m)
+    check "noinline" in $ir2
+    LLVMDisposeMessage(ir2)
+
+    LLVMRemoveEnumAttributeAtIndex(fn, LLVMAttributeFunctionIndex, kind)
+    let ir3 = LLVMPrintModuleToString(m)
+    check "noinline" notin $ir3
+    LLVMDisposeMessage(ir3)
