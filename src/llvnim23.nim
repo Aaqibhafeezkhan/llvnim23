@@ -778,3 +778,48 @@ proc LLVMCreatePassBuilderOptions*(): LLVMPassBuilderOptionsRef {.llvmImport.}
 proc LLVMDisposePassBuilderOptions*(Options: LLVMPassBuilderOptionsRef) {.llvmImport.}
 proc LLVMRunPasses*(M: LLVMModuleRef; Passes: cstring; TM: LLVMTargetMachineRef; Options: LLVMPassBuilderOptionsRef): LLVMErrorRef {.llvmImport.}
 proc LLVMRunPassesOnFunction*(F: LLVMValueRef; Passes: cstring; TM: LLVMTargetMachineRef; Options: LLVMPassBuilderOptionsRef): LLVMErrorRef {.llvmImport.}
+
+type
+  LLVMTargetRef* = distinct pointer
+
+  LLVMCodeGenOptLevel* {.size: sizeof(cint).} = enum
+    LLVMCodeGenLevelNone = 0
+    LLVMCodeGenLevelLess = 1
+    LLVMCodeGenLevelDefault = 2
+    LLVMCodeGenLevelAggressive = 3
+
+  LLVMRelocMode* {.size: sizeof(cint).} = enum
+    LLVMRelocDefault = 0
+    LLVMRelocStatic = 1
+    LLVMRelocPIC = 2
+    LLVMRelocDynamicNoPic = 3
+    LLVMRelocROPI = 4
+    LLVMRelocRWPI = 5
+    LLVMRelocROPI_RWPI = 6
+
+  LLVMCodeModel* {.size: sizeof(cint).} = enum
+    LLVMCodeModelDefault = 0
+    LLVMCodeModelJITDefault = 1
+    LLVMCodeModelTiny = 2
+    LLVMCodeModelSmall = 3
+    LLVMCodeModelKernel = 4
+    LLVMCodeModelMedium = 5
+    LLVMCodeModelLarge = 6
+
+  LLVMCodeGenFileType* {.size: sizeof(cint).} = enum
+    LLVMAssemblyFile = 0
+    LLVMObjectFile = 1
+
+definePointerOps(LLVMTargetRef)
+
+proc LLVMGetDefaultTargetTriple*(): cstring {.llvmImport.}
+proc LLVMGetTargetFromTriple*(Triple: cstring; T: var LLVMTargetRef; ErrorMessage: var cstring): LLVMBool {.llvmImport.}
+proc LLVMGetTargetName*(T: LLVMTargetRef): cstring {.llvmImport.}
+
+proc LLVMCreateTargetMachine*(T: LLVMTargetRef; Triple: cstring; CPU: cstring; Features: cstring; Level: LLVMCodeGenOptLevel; Reloc: LLVMRelocMode; CodeModel: LLVMCodeModel): LLVMTargetMachineRef {.llvmImport.}
+proc LLVMDisposeTargetMachine*(T: LLVMTargetMachineRef) {.llvmImport.}
+
+proc LLVMSetTarget*(M: LLVMModuleRef; Triple: cstring) {.llvmImport.}
+proc LLVMSetDataLayout*(M: LLVMModuleRef; DataLayoutStr: cstring) {.llvmImport.}
+
+proc LLVMTargetMachineEmitToFile*(T: LLVMTargetMachineRef; M: LLVMModuleRef; Filename: cstring; codegen: LLVMCodeGenFileType; ErrorMessage: var cstring): LLVMBool {.llvmImport.}

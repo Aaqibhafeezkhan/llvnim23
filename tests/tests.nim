@@ -1,6 +1,7 @@
 import unittest
 import std/strutils
 import ../src/llvnim23
+import std/os
 
 suite "llvnim23":
 
@@ -1927,3 +1928,70 @@ suite "llvnim23":
     let msg = LLVMGetErrorMessage(err)
     check "unknown" in $msg or "invalid" in $msg or "pass" in $msg
     LLVMDisposeErrorMessage(msg)
+
+  test "target machine: emit assembly and object file":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("aot", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i64t = LLVMInt64TypeInContext(ctx)
+    var params = [i64t, i64t]
+    let fnTy = LLVMFunctionType(i64t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "add64", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    let a = LLVMGetParam(fn, 0)
+    let c = LLVMGetParam(fn, 1)
+    let sum = LLVMBuildAdd(b, a, c, "sum")
+    discard LLVMBuildRet(b, sum)
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+
+    let tripleC = LLVMGetDefaultTargetTriple()
+    check not tripleC.isNil
+    let triple = $tripleC
+    LLVMDisposeMessage(tripleC)
+
+    var target: LLVMTargetRef
+    var errMsg: cstring
+    if LLVMGetTargetFromTriple(triple.cstring, target, errMsg) != LLVMFalse:
+      check false # Failed to get target
+      if not errMsg.isNil: LLVMDisposeMessage(errMsg)
+    else:
+      check not target.isNil
+      LLVMSetTarget(m, triple.cstring)
+
+      let tm = LLVMCreateTargetMachine(target, triple.cstring, "generic", "", LLVMCodeGenLevelDefault, LLVMRelocPIC, LLVMCodeModelDefault)
+      check not tm.isNil
+      defer: LLVMDisposeTargetMachine(tm)
+
+      let asmFile = "/tmp/llvnim23_test.s"
+      var emitErr: cstring
+      let resAsm = LLVMTargetMachineEmitToFile(tm, m, asmFile.cstring, LLVMAssemblyFile, emitErr)
+      check resAsm == LLVMFalse
+      if not emitErr.isNil:
+        check false
+        LLVMDisposeMessage(emitErr)
+      
+      check fileExists(asmFile)
+      let asmContent = readFile(asmFile)
+      check asmContent.len > 0
+      check "add64" in asmContent
+      removeFile(asmFile)
+
+      let objFile = "/tmp/llvnim23_test.o"
+      emitErr = nil
+      let resObj = LLVMTargetMachineEmitToFile(tm, m, objFile.cstring, LLVMObjectFile, emitErr)
+      check resObj == LLVMFalse
+      if not emitErr.isNil:
+        check false
+        LLVMDisposeMessage(emitErr)
+      
+      check fileExists(objFile)
+      let objInfo = getFileInfo(objFile)
+      check objInfo.size > 0
+      removeFile(objFile)
