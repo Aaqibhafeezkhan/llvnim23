@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Nim](https://img.shields.io/badge/Nim-%E2%89%A52.2.10-orange.svg)](https://nim-lang.org/)
 [![LLVM](https://img.shields.io/badge/LLVM-23.1.x-6b4fbb.svg)](https://llvm.org/)
-[![Status](https://img.shields.io/badge/status-v0.3.0-brightgreen.svg)](https://github.com/xlebore3o4ka/llvnim23/releases/tag/v0.3.0)
+[![Status](https://img.shields.io/badge/status-v0.4.0-brightgreen.svg)](https://github.com/xlebore3o4ka/llvnim23/releases/tag/v0.3.0)
 
 Hand-written Nim bindings for the LLVM-C API, version 23.1.x. You call LLVM directly from Nim to build IR, run the verifier, optimize with the new PassBuilder, and execute code via LLJIT or MCJIT.
 
