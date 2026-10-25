@@ -1,14 +1,17 @@
 # llvnim23
 
-## What it is
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Nim](https://img.shields.io/badge/Nim-%E2%89%A52.2.10-orange.svg)](https://nim-lang.org/)
+[![OpenVINO](https://img.shields.io/badge/LLVM-21.1.x-6b4fbb.svg)](https://docs.openvino.ai/)
+[![Status](https://img.shields.io/badge/status-v0.2.0-brightgreen.svg)](https://github.com/xlebore3o4ka/llvnim/releases/tag/v0.2.0)
 
 Hand-written Nim bindings for the LLVM-C API, version 23.1.x. You call LLVM directly from Nim to build IR, run the verifier, optimize with the new PassBuilder, and execute code via LLJIT or MCJIT.
 
-## Why use it
+### Why use it
 
 Nim has no maintained bindings for modern LLVM-C. This package gives you the parts you need to write a compiler backend, a small language frontend, or a JIT in Nim, without leaving the language.
 
-## Requirements
+### Requirements
 
 - Nim >= 2.2.10.
 - LLVM 23.1.x. `checkVersion` raises `ValueError` on a different major.minor.
@@ -104,7 +107,7 @@ type AddFn = proc(a, b: int64): int64 {.cdecl.}
 echo cast[AddFn](addr)(20'i64, 22'i64)  # 42
 ```
 
-## Idiomatic API
+### Idiomatic API
 
 If you prefer a more Nim-friendly interface, import the `idiomatic` module. It automatically generates `camelCase` wrappers for all `LLVM*` functions (e.g., `contextCreate()` instead of `LLVMContextCreate()`) and provides RAII templates for safe memory management.
 
