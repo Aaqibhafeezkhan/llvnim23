@@ -225,3 +225,24 @@ suite "llvnim dx":
     type Fn = proc(): int32 {.cdecl.}
     let f = cast[Fn](addrr)
     check f() == 52
+
+  test "types: complex type helpers":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+
+    let arrTy = array(ctx, i32(ctx), 10)
+    check LLVMGetArrayLength2(arrTy) == 10
+    check LLVMGetElementType(arrTy) == i32(ctx)
+
+    let vecTy = vector(ctx, f32(ctx), 4)
+    check LLVMGetVectorSize(vecTy) == 4
+
+    let stTy = struct(ctx, [i32(ctx), f64(ctx)])
+    check LLVMStructGetTypeAtIndex(stTy, 0) == i32(ctx)
+    check LLVMStructGetTypeAtIndex(stTy, 1) == f64(ctx)
+    check LLVMIsPackedStruct(stTy) == LLVMFalse
+
+    let packedTy = struct(ctx, [i32(ctx), i8(ctx)], packed = true)
+    check LLVMIsPackedStruct(packedTy) == LLVMTrue
+
+    check ptrTy(ctx) == LLVMPointerTypeInContext(ctx, 0)
