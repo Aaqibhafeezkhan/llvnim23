@@ -1,3 +1,5 @@
+# Copyright (c) 2026 https://github.com/xlebore3o4ka
+
 import unittest
 import std/strutils
 import ../src/llvnim
@@ -183,3 +185,43 @@ suite "llvnim dx":
     
     check f(2, 5) == 7
     check f(10, 3) == 7
+
+  test "builders: call, alloca, load, store":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("dx_builders", ctx)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let (addFn, addEntry) = createFunction(m, ctx, "add", i32t, [i32t, i32t])
+    let (_, testEntry) = createFunction(m, ctx, "test", i32t, [])
+
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+
+    LLVMPositionBuilderAtEnd(b, addEntry)
+    let sum = LLVMBuildAdd(b, LLVMGetParam(addFn, 0), LLVMGetParam(addFn, 1), "sum")
+    discard LLVMBuildRet(b, sum)
+
+    LLVMPositionBuilderAtEnd(b, testEntry)
+    let slot = b.alloca(i32t, "slot")
+    discard b.store(slot, LLVMConstInt(i32t, 42, LLVMFalse))
+    let val = b.load(slot, "val")
+    let res = b.call(addFn, [val, LLVMConstInt(i32t, 10, LLVMFalse)], "res")
+    discard LLVMBuildRet(b, res)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, jitErr) = createLLJIT()
+    check jitErr.len == 0
+    check addModule(jit, m).len == 0
+
+    let (addrr, lookupErr) = lookup(jit, "test")
+    check lookupErr.len == 0
+
+    type Fn = proc(): int32 {.cdecl.}
+    let f = cast[Fn](addrr)
+    check f() == 52

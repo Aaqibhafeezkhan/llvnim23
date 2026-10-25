@@ -1139,3 +1139,6 @@ proc LLVMCountParams*(Fn: LLVMValueRef): cuint {.llvmImport.}
 
 proc LLVMGetValueName2*(Val: LLVMValueRef; Length: var csize_t): cstring {.llvmImport.}
 proc LLVMGetBasicBlockName*(BB: LLVMBasicBlockRef): cstring {.llvmImport.}
+
+proc LLVMTypeOf*(Val: LLVMValueRef): LLVMTypeRef {.llvmImport.}
+proc LLVMGetAllocatedType*(Alloca: LLVMValueRef): LLVMTypeRef {.llvmImport.}
