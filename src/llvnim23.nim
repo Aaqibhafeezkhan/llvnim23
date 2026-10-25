@@ -968,3 +968,22 @@ proc LLVMDIBuilderCreateExpression*(Builder: LLVMDIBuilderRef; Addr: ptr uint64;
 proc LLVMLinkModules2*(Dest: LLVMModuleRef; Src: LLVMModuleRef): LLVMBool {.llvmImport.}
   ## Links Src into Dest. On success, Dest owns Src's contents, and Src is destroyed.
   ## Returns 0 on success, 1 on error (e.g., duplicate symbols).
+
+proc LLVMParseBitcodeInContext2*(ContextRef: LLVMContextRef; MemBuf: LLVMMemoryBufferRef; OutModule: var LLVMModuleRef): LLVMBool {.llvmImport.}
+proc LLVMWriteBitcodeToFile*(M: LLVMModuleRef; Path: cstring): cint {.llvmImport.}
+proc LLVMWriteBitcodeToMemoryBuffer*(M: LLVMModuleRef): LLVMMemoryBufferRef {.llvmImport.}
+
+proc writeBitcodeToFile*(m: LLVMModuleRef; path: string): bool =
+  ## Writes the module to a .bc file. Returns true on success.
+  result = LLVMWriteBitcodeToFile(m, path.cstring) == 0
+
+proc parseBitcode*(ctx: LLVMContextRef; buf: LLVMMemoryBufferRef): tuple[module: LLVMModuleRef, err: string] =
+  ## Parses a bitcode memory buffer into a module. The buffer is consumed.
+  var modd: LLVMModuleRef
+  let rc = LLVMParseBitcodeInContext2(ctx, buf, modd)
+  if rc == LLVMFalse:
+    result.module = modd
+  else:
+    result.err = "failed to parse bitcode"
+
+proc LLVMCreateMemoryBufferWithContentsOfFile*(Path: cstring; OutMemBuf: var LLVMMemoryBufferRef; OutMessage: var cstring): LLVMBool {.llvmImport.}

@@ -2565,6 +2565,7 @@ entry:
     LLVMDisposeMessage(ir)
 
   test "linker: merge two modules":
+    echo "error is expected:"
     let ctx = LLVMContextCreate()
     defer: LLVMContextDispose(ctx)
 
@@ -2575,7 +2576,6 @@ entry:
     let i32t = LLVMInt32TypeInContext(ctx)
     let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
 
-    # In src: define funcC, then funcB calls funcC
     let fnC = LLVMAddFunction(src, "funcC", fnTy)
     let bbC = LLVMAppendBasicBlockInContext(ctx, fnC, "entry")
     let bC = LLVMCreateBuilderInContext(ctx)
@@ -2634,3 +2634,44 @@ entry:
 
     let rc = LLVMLinkModules2(dest, src)
     check rc != LLVMFalse
+
+  test "bitcode: write to file and read back":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("bcfile", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 99, LLVMFalse))
+
+    let path = "/tmp/llvnim23_test.bc"
+    check writeBitcodeToFile(m, path)
+    check fileExists(path)
+
+    var buf: LLVMMemoryBufferRef
+    var errMsg: cstring
+    let rc = LLVMCreateMemoryBufferWithContentsOfFile(path.cstring, buf, errMsg)
+    
+    if rc != LLVMFalse:
+      echo "Failed to read file: ", errMsg
+      if not errMsg.isNil: LLVMDisposeMessage(errMsg)
+    
+    check rc == LLVMFalse
+    check not buf.isNil
+
+    let (m2, err) = parseBitcode(ctx, buf)
+    check err.len == 0
+    check not m2.isNil
+    defer: LLVMDisposeModule(m2)
+
+    let ir = LLVMPrintModuleToString(m2)
+    check "ret i32 99" in $ir
+    LLVMDisposeMessage(ir)
+    
+    removeFile(path)
