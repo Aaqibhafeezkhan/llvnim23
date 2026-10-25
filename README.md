@@ -1,5 +1,6 @@
 # llvnim23
 
+[![CI](https://github.com/xlebore3o4ka/llvnim23/actions/workflows/ci.yml/badge.svg)](https://github.com/xlebore3o4ka/llvnim23/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Nim](https://img.shields.io/badge/Nim-%E2%89%A52.2.10-orange.svg)](https://nim-lang.org/)
 [![LLVM](https://img.shields.io/badge/LLVM-23.1.x-6b4fbb.svg)](https://llvm.org/)
