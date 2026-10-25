@@ -12,17 +12,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install LLVM
+
+      - name: Install LLVM 23.1.1 via apt.llvm.org
         run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-23 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+
           sudo apt-get update
-          sudo apt-get install -y llvm-dev
-          
+          sudo apt-get install -y llvm-23-dev llvm-23
+
+          sudo ldconfig
+
       - name: Setup Nim
         uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: 'stable'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Run tests
-        run: nim c -r --lineTrace:on --stackTrace:on -o:tests/tests tests/tests.nim
+        run: |
+          nim c -r --lineTrace:on --stackTrace:on -o:tests/tests tests/tests.nim
