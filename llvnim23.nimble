@@ -2,7 +2,7 @@
 
 version       = "0.1.1"
 author        = "xlebore3o4ka"
-description   = "Nim bindings for the LLVM-C API, version 23.1.1"
+description   = "Nim bindings for the LLVM-C API, version 23.1.x"
 license       = "AGPL-3.0"
 srcDir        = "src"
 

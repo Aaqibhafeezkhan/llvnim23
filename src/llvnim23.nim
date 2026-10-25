@@ -900,3 +900,28 @@ proc parseIR*(ctx: LLVMContextRef; irText: string; name: string = "ir"): tuple[m
     result.module = modd
   else:
     result.module = LLVMModuleRef(nil)
+
+type
+  JitModule* = object
+    ## Wrapper for a module intended for JIT compilation.
+    ## Automatically nullifies the module pointer once ownership is transferred to the JIT.
+    raw*: LLVMModuleRef
+
+proc initJitModule*(m: LLVMModuleRef): JitModule =
+  JitModule(raw: m)
+
+proc addModuleSafe*(jit: LLVMOrcLLJITRef, jm: var JitModule): string =
+  ## Transfers ownership of the module to the LLJIT instance.
+  ## The JitModule wrapper is nullified to prevent double-free or use-after-transfer.
+  doAssert not jm.raw.isNil, "JitModule already transferred or nil"
+  let m = jm.raw
+  jm.raw = LLVMModuleRef(nil)
+  result = addModule(jit, m)
+
+proc createJITSafe*(jm: var JitModule, OptLevel: cuint = 0): tuple[ee: LLVMExecutionEngineRef, err: string] =
+  ## Transfers ownership of the module to the MCJIT instance.
+  ## The JitModule wrapper is nullified to prevent double-free or use-after-transfer.
+  doAssert not jm.raw.isNil, "JitModule already transferred or nil"
+  let m = jm.raw
+  jm.raw = LLVMModuleRef(nil)
+  result = createJIT(m, OptLevel)
