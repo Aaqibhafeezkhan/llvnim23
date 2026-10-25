@@ -2565,7 +2565,6 @@ entry:
     LLVMDisposeMessage(ir)
 
   test "linker: merge two modules":
-    echo "error is expected:"
     let ctx = LLVMContextCreate()
     defer: LLVMContextDispose(ctx)
 
@@ -2675,3 +2674,125 @@ entry:
     LLVMDisposeMessage(ir)
     
     removeFile(path)
+
+  test "object: read sections and symbols from emitted .o":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("obj", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i64t = LLVMInt64TypeInContext(ctx)
+    var params = [i64t, i64t]
+    let fnTy = LLVMFunctionType(i64t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "my_add", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    let sum = LLVMBuildAdd(b, LLVMGetParam(fn, 0), LLVMGetParam(fn, 1), "sum")
+    discard LLVMBuildRet(b, sum)
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+
+    let tripleC = LLVMGetDefaultTargetTriple()
+    let triple = $tripleC
+    LLVMDisposeMessage(tripleC)
+    LLVMSetTarget(m, triple.cstring)
+
+    var target: LLVMTargetRef
+    var errMsg: cstring
+    discard LLVMGetTargetFromTriple(triple.cstring, target, errMsg)
+    let tm = LLVMCreateTargetMachine(target, triple.cstring, "generic", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault)
+    defer: LLVMDisposeTargetMachine(tm)
+
+    let objFile = "/tmp/llvnim23_objtest.o"
+    var emitErr: cstring
+    check LLVMTargetMachineEmitToFile(tm, m, objFile.cstring, LLVMObjectFile, emitErr) == LLVMFalse
+    check fileExists(objFile)
+
+    let (br, loadErr) = loadObjectFile(ctx, objFile)
+    check loadErr.len == 0
+    check not br.isNil
+    defer: LLVMDisposeBinary(br)
+
+    var secIt = LLVMObjectFileCopySectionIterator(br)
+    check not secIt.isNil
+    defer: LLVMDisposeSectionIterator(secIt)
+
+    var foundText = false
+    while LLVMObjectFileIsSectionIteratorAtEnd(br, secIt) == LLVMFalse:
+      let nameC = LLVMGetSectionName(secIt)
+      if not nameC.isNil:
+        let name = $nameC
+        if name == ".text":
+          foundText = true
+          check LLVMGetSectionSize(secIt) > 0
+          check not LLVMGetSectionContents(secIt).isNil
+      LLVMMoveToNextSection(secIt)
+    check foundText
+
+    var symIt = LLVMObjectFileCopySymbolIterator(br)
+    check not symIt.isNil
+    defer: LLVMDisposeSymbolIterator(symIt)
+
+    var foundMyAdd = false
+    while LLVMObjectFileIsSymbolIteratorAtEnd(br, symIt) == LLVMFalse:
+      let nameC = LLVMGetSymbolName(symIt)
+      if not nameC.isNil:
+        let name = $nameC
+        if name == "my_add":
+          foundMyAdd = true
+          check LLVMGetSymbolSize(symIt) > 0
+      LLVMMoveToNextSymbol(symIt)
+    check foundMyAdd
+
+    removeFile(objFile)
+
+  test "object: empty module has no functions but has sections":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("empty_obj", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let g = LLVMAddGlobal(m, i32t, "my_global")
+    LLVMSetInitializer(g, LLVMConstInt(i32t, 42, LLVMFalse))
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+
+    let tripleC = LLVMGetDefaultTargetTriple()
+    let triple = $tripleC
+    LLVMDisposeMessage(tripleC)
+    LLVMSetTarget(m, triple.cstring)
+
+    var target: LLVMTargetRef
+    var errMsg: cstring
+    discard LLVMGetTargetFromTriple(triple.cstring, target, errMsg)
+    let tm = LLVMCreateTargetMachine(target, triple.cstring, "generic", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault)
+    defer: LLVMDisposeTargetMachine(tm)
+
+    let objFile = "/tmp/llvnim23_objtest2.o"
+    var emitErr: cstring
+    check LLVMTargetMachineEmitToFile(tm, m, objFile.cstring, LLVMObjectFile, emitErr) == LLVMFalse
+
+    let (br, loadErr) = loadObjectFile(ctx, objFile)
+    check loadErr.len == 0
+    defer: LLVMDisposeBinary(br)
+
+    var symIt = LLVMObjectFileCopySymbolIterator(br)
+    defer: LLVMDisposeSymbolIterator(symIt)
+
+    var foundGlobal = false
+    var foundFunc = false
+    while LLVMObjectFileIsSymbolIteratorAtEnd(br, symIt) == LLVMFalse:
+      let name = $LLVMGetSymbolName(symIt)
+      if name == "my_global": foundGlobal = true
+      if name == "my_func": foundFunc = true
+      LLVMMoveToNextSymbol(symIt)
+    
+    check foundGlobal
+    check not foundFunc
+
+    removeFile(objFile)
