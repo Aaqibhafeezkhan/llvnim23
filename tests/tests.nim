@@ -852,7 +852,6 @@ suite "llvnim23":
     LLVMPositionBuilderAtEnd(b, bb)
     let p16 = LLVMGetParam(fn, 0)
     let p32 = LLVMGetParam(fn, 1)
-    let p64 = LLVMGetParam(fn, 2)
     let z = LLVMBuildZExt(b, p16, i32t, "z")
     check not z.isNil
     let t = LLVMBuildTrunc(b, p32, i16t, "t")
@@ -2463,3 +2462,102 @@ entry:
     doAssert jitErr.len == 0
     doAssert addModuleSafe(jit, m).len == 0
     doAssert m.raw.isNil
+
+  test "debug info: minimal compile unit and subprogram":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let voidt = LLVMVoidTypeInContext(ctx)
+    let fnTy = LLVMFunctionType(voidt, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(
+      diBuilder, LLVMDWARFSourceLanguageC, file,
+      "llvnim23", csize_t(8), LLVMFalse,
+      "", csize_t(0), 0,
+      "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse,
+      "", csize_t(0), "", csize_t(0)
+    )
+
+    let subTy = LLVMDIBuilderCreateSubroutineType(diBuilder, file, nil, 0, 0)
+    let sp = LLVMDIBuilderCreateFunction(
+      diBuilder, cu, "f", csize_t(1), "f", csize_t(1),
+      file, 1, subTy, LLVMFalse, LLVMTrue, 1, 0, LLVMFalse
+    )
+    LLVMSetSubprogram(fn, sp)
+
+    let loc = LLVMDIBuilderCreateDebugLocation(ctx, 1, 1, sp, LLVMMetadataRef(nil))
+    LLVMSetCurrentDebugLocation2(b, loc)
+
+    discard LLVMBuildRetVoid(b)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+    let ir = LLVMPrintModuleToString(m)
+    check "!DICompileUnit" in $ir
+    check "!DISubprogram" in $ir
+    check "!DILocation" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "debug info: type and variable":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di2", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let voidt = LLVMVoidTypeInContext(ctx)
+    let fnTy = LLVMFunctionType(voidt, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    
+    let alloca = LLVMBuildAlloca(b, i32t, "x")
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+    
+    let subTy = LLVMDIBuilderCreateSubroutineType(diBuilder, file, nil, 0, 0)
+    let sp = LLVMDIBuilderCreateFunction(diBuilder, cu, "f", csize_t(1), "f", csize_t(1), file, 1, subTy, LLVMFalse, LLVMTrue, 1, 0, LLVMFalse)
+    LLVMSetSubprogram(fn, sp)
+
+    let basicTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+    
+    let loc = LLVMDIBuilderCreateDebugLocation(ctx, 2, 1, sp, LLVMMetadataRef(nil))
+    LLVMSetCurrentDebugLocation2(b, loc)
+
+    let varDecl = LLVMDIBuilderCreateAutoVariable(diBuilder, sp, "x", csize_t(1), file, 2, basicTy, LLVMFalse, 0, 0)
+    check not varDecl.isNil
+
+    let emptyExpr = LLVMDIBuilderCreateExpression(diBuilder, nil, csize_t(0))
+    let declareInst = LLVMDIBuilderInsertDeclareRecordAtEnd(diBuilder, alloca, varDecl, emptyExpr, loc, bb)
+    check not declareInst.isNil
+
+    discard LLVMBuildRetVoid(b)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+    let ir = LLVMPrintModuleToString(m)
+    check "!DIBasicType" in $ir
+    check "!DILocalVariable" in $ir
+    check "#dbg_declare" in $ir
+    LLVMDisposeMessage(ir)

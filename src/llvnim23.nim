@@ -925,3 +925,41 @@ proc createJITSafe*(jm: var JitModule, OptLevel: cuint = 0): tuple[ee: LLVMExecu
   let m = jm.raw
   jm.raw = LLVMModuleRef(nil)
   result = createJIT(m, OptLevel)
+
+type
+  LLVMDIBuilderRef* = distinct pointer
+  LLVMDbgRecordRef* = distinct pointer
+
+  LLVMDWARFSourceLanguage* {.size: sizeof(cint).} = enum
+    LLVMDWARFSourceLanguageC = 0,
+    # Note: other values omitted for brevity, C is usually enough for basic tests
+
+  LLVMDWARFEmissionKind* {.size: sizeof(cint).} = enum
+    LLVMDWARFEmissionNone = 0,
+    LLVMDWARFEmissionFull = 1,
+    LLVMDWARFEmissionLineTablesOnly = 2
+
+definePointerOps(LLVMDIBuilderRef)
+definePointerOps(LLVMDbgRecordRef)
+
+proc LLVMCreateDIBuilder*(M: LLVMModuleRef): LLVMDIBuilderRef {.llvmImport.}
+proc LLVMDisposeDIBuilder*(Builder: LLVMDIBuilderRef) {.llvmImport.}
+
+proc LLVMDIBuilderCreateFile*(Builder: LLVMDIBuilderRef; Filename: cstring; FilenameLen: csize_t; Directory: cstring; DirectoryLen: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateCompileUnit*(Builder: LLVMDIBuilderRef; Lang: LLVMDWARFSourceLanguage; FileRef: LLVMMetadataRef; Producer: cstring; ProducerLen: csize_t; isOptimized: LLVMBool; Flags: cstring; FlagsLen: csize_t; RuntimeVer: cuint; SplitName: cstring; SplitNameLen: csize_t; Kind: LLVMDWARFEmissionKind; DWOId: cuint; SplitDebugInlining: LLVMBool; DebugInfoForProfiling: LLVMBool; SysRoot: cstring; SysRootLen: csize_t; SDK: cstring; SDKLen: csize_t): LLVMMetadataRef {.llvmImport.}
+
+proc LLVMDIBuilderCreateFunction*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; LinkageName: cstring; LinkageNameLen: csize_t; File: LLVMMetadataRef; LineNo: cuint; Ty: LLVMMetadataRef; IsLocalToUnit: LLVMBool; IsDefinition: LLVMBool; ScopeLine: cuint; Flags: cint; IsOptimized: LLVMBool): LLVMMetadataRef {.llvmImport.}
+
+proc LLVMSetSubprogram*(Func: LLVMValueRef; SP: LLVMMetadataRef) {.llvmImport.}
+
+proc LLVMDIBuilderCreateDebugLocation*(Ctx: LLVMContextRef; Line: cuint; Column: cuint; Scope: LLVMMetadataRef; InlinedAt: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMSetCurrentDebugLocation2*(Builder: LLVMBuilderRef; Loc: LLVMMetadataRef) {.llvmImport.}
+
+proc LLVMDIBuilderCreateBasicType*(Builder: LLVMDIBuilderRef; Name: cstring; NameLen: csize_t; SizeInBits: uint64; Encoding: cuint; Flags: cint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateSubroutineType*(Builder: LLVMDIBuilderRef; File: LLVMMetadataRef; ParameterTypes: ptr LLVMMetadataRef; NumParameterTypes: cuint; Flags: cint): LLVMMetadataRef {.llvmImport.}
+
+proc LLVMDIBuilderCreateAutoVariable*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNo: cuint; Ty: LLVMMetadataRef; AlwaysPreserve: LLVMBool; Flags: cint; AlignInBits: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderInsertDeclareRecordAtEnd*(Builder: LLVMDIBuilderRef; Storage: LLVMValueRef; VarInfo: LLVMMetadataRef; Expr: LLVMMetadataRef; DebugLoc: LLVMMetadataRef): LLVMValueRef {.llvmImport.}
+
+proc LLVMDIBuilderInsertDeclareRecordAtEnd*(Builder: LLVMDIBuilderRef; Storage: LLVMValueRef; VarInfo: LLVMMetadataRef; Expr: LLVMMetadataRef; DebugLoc: LLVMMetadataRef; Block: LLVMBasicBlockRef): LLVMDbgRecordRef {.llvmImport.}
+proc LLVMDIBuilderCreateExpression*(Builder: LLVMDIBuilderRef; Addr: ptr uint64; Length: csize_t): LLVMMetadataRef {.llvmImport.}
