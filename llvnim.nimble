@@ -9,6 +9,3 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 2.2.10"
-
-task testall, "Run tests with debug flags":
-  exec "nimble --debugger:native --stacktrace:on --linetrace:on -d:debug --passC:-D_GNU_SOURCE -d:nimNoLentIterators test"

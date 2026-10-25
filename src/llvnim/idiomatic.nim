@@ -2,8 +2,8 @@
 
 import std/macros
 import std/strutils
-import ../llvnim23
-export llvnim23
+import ../llvnim
+export llvnim
 
 macro generateIdiomatic*(file: static string): untyped =
   ## Parses the raw bindings file and generates inline forwarders without the LLVM prefix.
@@ -52,7 +52,7 @@ macro generateIdiomatic*(file: static string): untyped =
         )
         result.add(procDef)
 
-generateIdiomatic("../llvnim23.nim")
+generateIdiomatic("../llvnim.nim")
 
 # RAII wrappers
 

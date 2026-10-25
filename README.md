@@ -1,10 +1,10 @@
-# llvnim23
+# llvnim
 
-[![CI](https://github.com/xlebore3o4ka/llvnim23/actions/workflows/ci.yml/badge.svg)](https://github.com/xlebore3o4ka/llvnim23/actions/workflows/ci.yml)
+[![CI](https://github.com/xlebore3o4ka/llvnim/actions/workflows/ci.yml/badge.svg)](https://github.com/xlebore3o4ka/llvnim/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Nim](https://img.shields.io/badge/Nim-%E2%89%A52.2.10-orange.svg)](https://nim-lang.org/)
 [![LLVM](https://img.shields.io/badge/LLVM-23.1.x-6b4fbb.svg)](https://llvm.org/)
-[![Status](https://img.shields.io/badge/status-v0.3.0-brightgreen.svg)](https://github.com/xlebore3o4ka/llvnim23/releases/tag/v0.3.0)
+[![Status](https://img.shields.io/badge/status-v0.3.0-brightgreen.svg)](https://github.com/xlebore3o4ka/llvnim/releases/tag/v0.3.0)
 
 Hand-written Nim bindings for the LLVM-C API, version 23.1.x. You call LLVM directly from Nim to build IR, run the verifier, optimize with the new PassBuilder, and execute code via LLJIT or MCJIT.
 
@@ -48,19 +48,19 @@ Windows: use the official LLVM 23.1.x build from llvm.org. It ships `LLVM-C.dll`
 ## Install
 
 ```sh
-nimble install llvnim23
+nimble install llvnim
 ```
 
-Package page: <https://nimble.directory/pkg/llvnim23>
+Package page: <https://nimble.directory/pkg/llvnim>
 
-Or vendor `src/llvnim23.nim` and `import llvnim23`.
+Or vendor `src/llvnim.nim` and `import llvnim`.
 
 ## Quickstart
 
 Build an `add` function, verify it, print the IR.
 
 ```nim
-import llvnim23
+import llvnim
 
 checkVersion()
 
@@ -113,7 +113,7 @@ echo cast[AddFn](addr)(20'i64, 22'i64)  # 42
 If you prefer a more Nim-friendly interface, import the `idiomatic` module. It automatically generates `camelCase` wrappers for all `LLVM*` functions (e.g., `contextCreate()` instead of `LLVMContextCreate()`) and provides RAII templates for safe memory management.
 
 ```nim
-import llvnim23/idiomatic
+import llvnim/idiomatic
 
 withContext(ctx):
   withModule(ctx, "hello", m):

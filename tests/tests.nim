@@ -2,11 +2,11 @@
 
 import unittest
 import std/strutils
-import ../src/llvnim23
+import ../src/llvnim
 import std/os
-import ../src/llvnim23/idiomatic
+import ../src/llvnim/idiomatic
 
-suite "llvnim23":
+suite "llvnim":
 
   test "version check succeeds":
     checkVersion()

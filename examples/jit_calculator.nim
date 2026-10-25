@@ -1,4 +1,4 @@
-import ../src/llvnim23
+import ../src/llvnim
 
 proc main() =
   checkVersion()
