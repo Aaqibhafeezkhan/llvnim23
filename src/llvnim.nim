@@ -1105,10 +1105,37 @@ proc disassembleBytes*(triple: string; bytes: openArray[uint8]; pc: uint64 = 0; 
   var pos = 0
   var buffer: array[1024, char]
   while pos < bytes.len:
-    let size = LLVMDisasmInstruction(dc, cast[ptr uint8](unsafeAddr bytes[pos]), uint64(bytes.len - pos), pc + uint64(pos), addr buffer[0], csize_t(buffer.len))
+    let size = LLVMDisasmInstruction(dc, cast[ptr uint8](unsafeAddr bytes[pos]), uint64(bytes.len - pos), pc + uint64(pos), cast[cstring](addr buffer[0]), csize_t(buffer.len))
     if size == 0:
       result.add("<invalid>")
       inc pos
     else:
       result.add($cast[cstring](addr buffer[0]))
       pos += int(size)
+
+proc LLVMGetFirstFunction*(M: LLVMModuleRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetLastFunction*(M: LLVMModuleRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetNextFunction*(Fn: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetPreviousFunction*(Fn: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMCountFunctions*(M: LLVMModuleRef): cuint {.llvmImport.}
+
+proc LLVMGetFirstGlobal*(M: LLVMModuleRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetLastGlobal*(M: LLVMModuleRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetNextGlobal*(GV: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetPreviousGlobal*(GV: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMCountGlobals*(M: LLVMModuleRef): cuint {.llvmImport.}
+
+proc LLVMGetFirstBasicBlock*(Fn: LLVMValueRef): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMGetLastBasicBlock*(Fn: LLVMValueRef): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMGetNextBasicBlock*(BB: LLVMBasicBlockRef): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMGetPreviousBasicBlock*(BB: LLVMBasicBlockRef): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMCountBasicBlocks*(Fn: LLVMValueRef): cuint {.llvmImport.}
+
+proc LLVMGetFirstInstruction*(BB: LLVMBasicBlockRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetLastInstruction*(BB: LLVMBasicBlockRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetNextInstruction*(Inst: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetPreviousInstruction*(Inst: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMCountParams*(Fn: LLVMValueRef): cuint {.llvmImport.}
+
+proc LLVMGetValueName2*(Val: LLVMValueRef; Length: var csize_t): cstring {.llvmImport.}
+proc LLVMGetBasicBlockName*(BB: LLVMBasicBlockRef): cstring {.llvmImport.}

@@ -3092,7 +3092,7 @@ entry:
 
     let nopRet = [0x90'u8, 0xC3'u8]
     var buf: array[128, char]
-    let size1 = LLVMDisasmInstruction(dc, cast[ptr uint8](unsafeAddr nopRet[0]), 2, 0, addr buf[0], csize_t(buf.len))
+    let size1 = LLVMDisasmInstruction(dc, cast[ptr uint8](unsafeAddr nopRet[0]), 2, 0, cast[cstring](addr buf[0]), csize_t(buf.len))
     check size1 > 0
     let s1 = $cast[cstring](addr buf[0])
     check "nop" in s1 or "ret" in s1
