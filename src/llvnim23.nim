@@ -987,3 +987,76 @@ proc parseBitcode*(ctx: LLVMContextRef; buf: LLVMMemoryBufferRef): tuple[module:
     result.err = "failed to parse bitcode"
 
 proc LLVMCreateMemoryBufferWithContentsOfFile*(Path: cstring; OutMemBuf: var LLVMMemoryBufferRef; OutMessage: var cstring): LLVMBool {.llvmImport.}
+
+type
+  LLVMBinaryRef* = distinct pointer
+  LLVMSectionIteratorRef* = distinct pointer
+  LLVMSymbolIteratorRef* = distinct pointer
+
+definePointerOps(LLVMBinaryRef)
+definePointerOps(LLVMSectionIteratorRef)
+definePointerOps(LLVMSymbolIteratorRef)
+
+proc LLVMCreateBinary*(MemBuf: LLVMMemoryBufferRef; Context: LLVMContextRef; ErrorMessage: var cstring): LLVMBinaryRef {.llvmImport.}
+proc LLVMDisposeBinary*(BR: LLVMBinaryRef) {.llvmImport.}
+
+proc LLVMGetSections*(BR: LLVMBinaryRef): LLVMSectionIteratorRef {.llvmImport.}
+proc LLVMObjectFileIsSectionIteratorAtEnd*(BR: LLVMBinaryRef; SI: LLVMSectionIteratorRef): LLVMBool {.llvmImport.}
+proc LLVMDisposeSectionIterator*(SI: LLVMSectionIteratorRef) {.llvmImport.}
+proc LLVMMoveToNextSection*(SI: LLVMSectionIteratorRef) {.llvmImport.}
+proc LLVMGetSectionName*(SI: LLVMSectionIteratorRef): cstring {.llvmImport.}
+proc LLVMGetSectionAddress*(SI: LLVMSectionIteratorRef): uint64 {.llvmImport.}
+proc LLVMGetSectionSize*(SI: LLVMSectionIteratorRef): uint64 {.llvmImport.}
+proc LLVMGetSectionContents*(SI: LLVMSectionIteratorRef): cstring {.llvmImport.}
+
+proc LLVMGetSymbols*(BR: LLVMBinaryRef): LLVMSymbolIteratorRef {.llvmImport.}
+proc LLVMObjectFileIsSymbolIteratorAtEnd*(BR: LLVMBinaryRef; SI: LLVMSymbolIteratorRef): LLVMBool {.llvmImport.}
+proc LLVMDisposeSymbolIterator*(SI: LLVMSymbolIteratorRef) {.llvmImport.}
+proc LLVMMoveToNextSymbol*(SI: LLVMSymbolIteratorRef) {.llvmImport.}
+proc LLVMGetSymbolName*(SI: LLVMSymbolIteratorRef): cstring {.llvmImport.}
+proc LLVMGetSymbolAddress*(SI: LLVMSymbolIteratorRef): uint64 {.llvmImport.}
+proc LLVMGetSymbolSize*(SI: LLVMSymbolIteratorRef): uint64 {.llvmImport.}
+
+proc loadObjectFile*(ctx: LLVMContextRef; path: string): tuple[bin: LLVMBinaryRef, err: string] =
+  ## Loads an object file from disk into an LLVMBinaryRef for inspection.
+  var buf: LLVMMemoryBufferRef
+  var errMsg: cstring
+  if LLVMCreateMemoryBufferWithContentsOfFile(path.cstring, buf, errMsg) != LLVMFalse:
+    if not errMsg.isNil:
+      result.err = $errMsg
+      LLVMDisposeMessage(errMsg)
+    else:
+      result.err = "failed to read file"
+    return
+
+  var createErr: cstring
+  let br = LLVMCreateBinary(buf, ctx, createErr)
+  if not createErr.isNil:
+    result.err = $createErr
+    LLVMDisposeMessage(createErr)
+    result.bin = LLVMBinaryRef(nil)
+  else:
+    result.bin = br
+
+proc LLVMObjectFileCopySectionIterator*(BR: LLVMBinaryRef): LLVMSectionIteratorRef {.llvmImport.}
+proc LLVMObjectFileCopySymbolIterator*(BR: LLVMBinaryRef): LLVMSymbolIteratorRef {.llvmImport.}
+
+type
+  LLVMComdatRef* = distinct pointer
+
+  LLVMComdatSelectionKind* {.size: sizeof(cint).} = enum
+    LLVMAnyComdatSelectionKind = 0
+    LLVMExactMatchComdatSelectionKind = 1
+    LLVMLargestComdatSelectionKind = 2
+    LLVMNoDuplicatesComdatSelectionKind = 3
+    LLVMSameSizeComdatSelectionKind = 4
+
+definePointerOps(LLVMComdatRef)
+
+proc LLVMGetComdat*(V: LLVMValueRef): LLVMComdatRef {.llvmImport.}
+proc LLVMSetComdat*(V: LLVMValueRef; C: LLVMComdatRef) {.llvmImport.}
+proc LLVMGetComdatSelectionKind*(C: LLVMComdatRef): LLVMComdatSelectionKind {.llvmImport.}
+proc LLVMSetComdatSelectionKind*(C: LLVMComdatRef; Kind: LLVMComdatSelectionKind) {.llvmImport.}
+
+proc LLVMVerifyFunction*(Fn: LLVMValueRef; Action: LLVMVerifierFailureAction): LLVMBool {.llvmImport.}
+proc LLVMGetNamedFunction*(M: LLVMModuleRef; Name: cstring): LLVMValueRef {.llvmImport.}

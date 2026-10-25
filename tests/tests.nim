@@ -2796,3 +2796,56 @@ entry:
     check not foundFunc
 
     removeFile(objFile)
+
+  test "comdat: set and get comdat selection kind":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("comdat1", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let irText = """
+$f = comdat any
+define i32 @f() comdat {
+entry:
+  ret i32 0
+}
+"""
+    let (m2, err) = parseIR(ctx, irText)
+    check err.len == 0
+    defer: LLVMDisposeModule(m2)
+
+    let fn2 = LLVMGetNamedFunction(m2, "f")
+    check not fn2.isNil
+
+    let comdat = LLVMGetComdat(fn2)
+    check not comdat.isNil
+    check LLVMGetComdatSelectionKind(comdat) == LLVMAnyComdatSelectionKind
+
+    LLVMSetComdatSelectionKind(comdat, LLVMExactMatchComdatSelectionKind)
+    check LLVMGetComdatSelectionKind(comdat) == LLVMExactMatchComdatSelectionKind
+
+    let irOut = LLVMPrintModuleToString(m2)
+    check "comdat exactmatch" in $irOut
+    LLVMDisposeMessage(irOut)
+
+  test "analysis: verify function":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("verify_fn", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+
+    check LLVMVerifyFunction(fn, LLVMReturnStatusAction) == LLVMFalse
+
+    let fnBad = LLVMAddFunction(m, "bad", fnTy)
+    discard LLVMAppendBasicBlockInContext(ctx, fnBad, "entry")
+    
+    check LLVMVerifyFunction(fnBad, LLVMReturnStatusAction) != LLVMFalse
