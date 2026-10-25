@@ -2,6 +2,7 @@ import unittest
 import std/strutils
 import ../src/llvnim23
 import std/os
+import ../src/llvnim23/idiomatic
 
 suite "llvnim23":
 
@@ -2331,3 +2332,90 @@ entry:
     type Fn = proc(a, b: int64): int64 {.cdecl.}
     let f = cast[Fn](addrr)
     check f(6'i64, 7'i64) == 42'i64
+
+  test "safe wrappers: LLJIT ownership transfer":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("safe_lljit", ctx)
+    var jm = initJitModule(m)
+    
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    
+    let (jit, jitErr) = createLLJIT()
+    check jitErr.len == 0
+
+    let addErr = addModuleSafe(jit, jm)
+    check addErr.len == 0
+    check jm.raw.isNil # Ownership transferred
+
+    # Safe wrapper should catch double-transfer
+    try:
+      discard addModuleSafe(jit, jm)
+      check false
+    except AssertionDefect:
+      discard
+
+  test "safe wrappers: MCJIT ownership transfer":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("safe_mcjit", ctx)
+    var jm = initJitModule(m)
+    
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    
+    let (ee, err) = createJITSafe(jm, 0)
+    check err.len == 0
+    check not ee.isNil
+    defer: LLVMDisposeExecutionEngine(ee)
+    
+    check jm.raw.isNil # Ownership transferred
+
+  test "idiomatic: forwarders work automatically":
+    # Note: we use the idiomatic names here
+    let ctx = contextCreate()
+    check not ctx.isNil
+    defer: contextDispose(ctx)
+
+    let i32t = int32TypeInContext(ctx)
+    let m = moduleCreateWithNameInContext("idiom", ctx)
+    check not m.isNil
+    defer: disposeModule(m)
+
+    let c = constInt(i32t, 42, LLVMFalse)
+    check not c.isNil
+
+  test "idiomatic: with* RAII wrappers":
+    withContext(ctx):
+      withModule(ctx, "testmod", m):
+        withBuilder(ctx, b):
+          let i32t = int32TypeInContext(ctx)
+          let fnTy = functionType(i32t, nil, 0, LLVMFalse)
+          let fn = addFunction(m, "answer", fnTy)
+          let bb = appendBasicBlockInContext(ctx, fn, "entry")
+          positionBuilderAtEnd(b, bb)
+          let c = constInt(i32t, 42, LLVMFalse)
+          discard buildRet(b, c)
+          
+          let (ok, msg) = verifyModule(m)
+          check ok
+          check msg.len == 0
