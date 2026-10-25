@@ -1060,3 +1060,16 @@ proc LLVMSetComdatSelectionKind*(C: LLVMComdatRef; Kind: LLVMComdatSelectionKind
 
 proc LLVMVerifyFunction*(Fn: LLVMValueRef; Action: LLVMVerifierFailureAction): LLVMBool {.llvmImport.}
 proc LLVMGetNamedFunction*(M: LLVMModuleRef; Name: cstring): LLVMValueRef {.llvmImport.}
+
+proc LLVMDIBuilderCreateLexicalBlock*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; File: LLVMMetadataRef; Line: cuint; Column: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderFinalize*(Builder: LLVMDIBuilderRef) {.llvmImport.}
+
+proc LLVMDIBuilderCreateSubrangeType*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; LineNo: cuint; File: LLVMMetadataRef; SizeInBits: uint64; AlignInBits: cuint; Flags: cint; BaseTy: LLVMMetadataRef; LowerBound: LLVMMetadataRef; UpperBound: LLVMMetadataRef; Stride: LLVMMetadataRef; Bias: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateArrayType*(Builder: LLVMDIBuilderRef; Size: uint64; AlignInBits: cuint; Ty: LLVMMetadataRef; Subscripts: ptr LLVMMetadataRef; NumSubscripts: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreatePointerType*(Builder: LLVMDIBuilderRef; PointeeTy: LLVMMetadataRef; SizeInBits: uint64; AlignInBits: cuint; AddressSpace: cuint; Name: cstring; NameLen: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateStructType*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNumber: cuint; SizeInBits: uint64; AlignInBits: cuint; Flags: cint; DerivedFrom: LLVMMetadataRef; Elements: ptr LLVMMetadataRef; NumElements: cuint; RunTimeLang: cuint; VTableHolder: LLVMMetadataRef; UniqueId: cstring; UniqueIdLen: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateMemberType*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNo: cuint; SizeInBits: uint64; AlignInBits: cuint; OffsetInBits: uint64; Flags: cint; Ty: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateGlobalVariableExpression*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; Linkage: cstring; LinkLen: csize_t; File: LLVMMetadataRef; LineNo: cuint; Ty: LLVMMetadataRef; LocalToUnit: LLVMBool; Expr: LLVMMetadataRef; Decl: LLVMMetadataRef; AlignInBits: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateParameterVariable*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; ArgNo: cuint; File: LLVMMetadataRef; LineNo: cuint; Ty: LLVMMetadataRef; AlwaysPreserve: LLVMBool; Flags: cint): LLVMMetadataRef {.llvmImport.}
+
+proc LLVMGlobalSetMetadata*(Global: LLVMValueRef; Kind: cuint; MD: LLVMMetadataRef) {.llvmImport.}

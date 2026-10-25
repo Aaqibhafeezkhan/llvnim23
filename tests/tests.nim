@@ -2849,3 +2849,231 @@ entry:
     discard LLVMAppendBasicBlockInContext(ctx, fnBad, "entry")
     
     check LLVMVerifyFunction(fnBad, LLVMReturnStatusAction) != LLVMFalse
+
+  test "debug info: struct type":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_struct", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+    let subTy = LLVMDIBuilderCreateSubroutineType(diBuilder, file, nil, 0, 0)
+    let sp = LLVMDIBuilderCreateFunction(diBuilder, cu, "f", csize_t(1), "f", csize_t(1), file, 1, subTy, LLVMFalse, LLVMTrue, 1, 0, LLVMFalse)
+    LLVMSetSubprogram(fn, sp)
+
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+    let memberX = LLVMDIBuilderCreateMemberType(diBuilder, sp, "x", csize_t(1), file, 2, 32, 32, 0, 0, intTy)
+    let memberY = LLVMDIBuilderCreateMemberType(diBuilder, sp, "y", csize_t(1), file, 3, 32, 32, 32, 0, intTy)
+    var members = [memberX, memberY]
+    
+    let structTy = LLVMDIBuilderCreateStructType(diBuilder, sp, "Point", csize_t(5), file, 2, 64, 32, 0, LLVMMetadataRef(nil), addr members[0], 2, 0, LLVMMetadataRef(nil), "", csize_t(0))
+    check not structTy.isNil
+
+    let varDecl = LLVMDIBuilderCreateAutoVariable(diBuilder, sp, "p", csize_t(1), file, 2, structTy, LLVMFalse, 0, 0)
+    let emptyExpr = LLVMDIBuilderCreateExpression(diBuilder, nil, csize_t(0))
+    let alloca = LLVMBuildAlloca(b, i32t, "p")
+    let loc = LLVMDIBuilderCreateDebugLocation(ctx, 2, 1, sp, LLVMMetadataRef(nil))
+    
+    discard LLVMDIBuilderInsertDeclareRecordAtEnd(diBuilder, alloca, varDecl, emptyExpr, loc, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+    LLVMDIBuilderFinalize(diBuilder)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+    let ir = LLVMPrintModuleToString(m)
+    check "DW_TAG_structure_type" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "debug info: pointer type":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_ptr", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+    let subTy = LLVMDIBuilderCreateSubroutineType(diBuilder, file, nil, 0, 0)
+    let sp = LLVMDIBuilderCreateFunction(diBuilder, cu, "f", csize_t(1), "f", csize_t(1), file, 1, subTy, LLVMFalse, LLVMTrue, 1, 0, LLVMFalse)
+    LLVMSetSubprogram(fn, sp)
+
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+    let ptrTy = LLVMDIBuilderCreatePointerType(diBuilder, intTy, 64, 64, 0, "ptr", csize_t(3))
+    check not ptrTy.isNil
+
+    let varDecl = LLVMDIBuilderCreateAutoVariable(diBuilder, sp, "p", csize_t(1), file, 2, ptrTy, LLVMFalse, 0, 0)
+    let emptyExpr = LLVMDIBuilderCreateExpression(diBuilder, nil, csize_t(0))
+    let alloca = LLVMBuildAlloca(b, i32t, "p")
+    let loc = LLVMDIBuilderCreateDebugLocation(ctx, 2, 1, sp, LLVMMetadataRef(nil))
+    
+    discard LLVMDIBuilderInsertDeclareRecordAtEnd(diBuilder, alloca, varDecl, emptyExpr, loc, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+    LLVMDIBuilderFinalize(diBuilder)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+    let ir = LLVMPrintModuleToString(m)
+    check "DW_TAG_pointer_type" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "debug info: array and lexical block":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_arr", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+    let subTy = LLVMDIBuilderCreateSubroutineType(diBuilder, file, nil, 0, 0)
+    let sp = LLVMDIBuilderCreateFunction(diBuilder, cu, "f", csize_t(1), "f", csize_t(1), file, 1, subTy, LLVMFalse, LLVMTrue, 1, 0, LLVMFalse)
+    LLVMSetSubprogram(fn, sp)
+
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+    let lower = LLVMConstInt(i32t, 0, LLVMFalse)
+    let lowerMd = LLVMValueAsMetadata(lower)
+    let upper = LLVMConstInt(i32t, 3, LLVMFalse)
+    let upperMd = LLVMValueAsMetadata(upper)
+    
+    let subrange = LLVMDIBuilderCreateSubrangeType(diBuilder, sp, "", csize_t(0), 0, file, 32, 32, 0, intTy, lowerMd, upperMd, LLVMMetadataRef(nil), LLVMMetadataRef(nil))
+    var subscripts = [subrange]
+    let arrTy = LLVMDIBuilderCreateArrayType(diBuilder, 128, 32, intTy, addr subscripts[0], 1)
+    check not arrTy.isNil
+
+    let blockk = LLVMDIBuilderCreateLexicalBlock(diBuilder, sp, file, 3, 1)
+    check not blockk.isNil
+
+    let varDecl = LLVMDIBuilderCreateAutoVariable(diBuilder, blockk, "arr_var", csize_t(7), file, 3, arrTy, LLVMFalse, 0, 0)
+    let emptyExpr = LLVMDIBuilderCreateExpression(diBuilder, nil, csize_t(0))
+    let alloca = LLVMBuildAlloca(b, i32t, "arr_var")
+    let loc = LLVMDIBuilderCreateDebugLocation(ctx, 3, 1, blockk, LLVMMetadataRef(nil))
+    
+    discard LLVMDIBuilderInsertDeclareRecordAtEnd(diBuilder, alloca, varDecl, emptyExpr, loc, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+    LLVMDIBuilderFinalize(diBuilder)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+    let ir = LLVMPrintModuleToString(m)
+    check "DW_TAG_array_type" in $ir
+    check "DILexicalBlock" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "debug info: function parameters":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_param", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var params = [i32t, i32t]
+    let fnTy = LLVMFunctionType(i32t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "add", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+    
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+    var paramTypes = [intTy, intTy]
+    let subTy = LLVMDIBuilderCreateSubroutineType(diBuilder, file, addr paramTypes[0], 2, 0)
+    let sp = LLVMDIBuilderCreateFunction(diBuilder, cu, "add", csize_t(3), "add", csize_t(3), file, 1, subTy, LLVMFalse, LLVMTrue, 1, 0, LLVMFalse)
+    LLVMSetSubprogram(fn, sp)
+
+    let varA = LLVMDIBuilderCreateParameterVariable(diBuilder, sp, "a", csize_t(1), 1, file, 1, intTy, LLVMTrue, 0)
+    let varB = LLVMDIBuilderCreateParameterVariable(diBuilder, sp, "b", csize_t(1), 2, file, 1, intTy, LLVMTrue, 0)
+    check not varA.isNil
+    check not varB.isNil
+
+    let emptyExpr = LLVMDIBuilderCreateExpression(diBuilder, nil, csize_t(0))
+    let loc = LLVMDIBuilderCreateDebugLocation(ctx, 1, 1, sp, LLVMMetadataRef(nil))
+
+    discard LLVMDIBuilderInsertDeclareRecordAtEnd(diBuilder, LLVMGetParam(fn, 0), varA, emptyExpr, loc, bb)
+    discard LLVMDIBuilderInsertDeclareRecordAtEnd(diBuilder, LLVMGetParam(fn, 1), varB, emptyExpr, loc, bb)
+
+    let sum = LLVMBuildAdd(b, LLVMGetParam(fn, 0), LLVMGetParam(fn, 1), "sum")
+    discard LLVMBuildRet(b, sum)
+    LLVMDIBuilderFinalize(diBuilder)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+    let ir = LLVMPrintModuleToString(m)
+    check "!DILocalVariable(name: \"a\"" in $ir
+    check "!DILocalVariable(name: \"b\"" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "debug info: global variables":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_global", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let g = LLVMAddGlobal(m, i32t, "my_global")
+    LLVMSetInitializer(g, LLVMConstInt(i32t, 42, LLVMFalse))
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+    
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+    let emptyExpr = LLVMDIBuilderCreateExpression(diBuilder, nil, csize_t(0))
+    
+    let gVarExpr = LLVMDIBuilderCreateGlobalVariableExpression(diBuilder, cu, "my_global", csize_t(9), "internal", csize_t(8), file, 1, intTy, LLVMFalse, emptyExpr, LLVMMetadataRef(nil), 32)
+    check not gVarExpr.isNil
+
+    let kind = LLVMGetMDKindIDInContext(ctx, "dbg", cuint(3))
+    LLVMGlobalSetMetadata(g, kind, gVarExpr)
+    
+    LLVMDIBuilderFinalize(diBuilder)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+    let ir = LLVMPrintModuleToString(m)
+    check "!DIGlobalVariableExpression" in $ir
+    LLVMDisposeMessage(ir)
