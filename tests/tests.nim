@@ -3077,3 +3077,37 @@ entry:
     let ir = LLVMPrintModuleToString(m)
     check "!DIGlobalVariableExpression" in $ir
     LLVMDisposeMessage(ir)
+
+  test "disassembler: disassemble machine code":
+    let tripleC = LLVMGetDefaultTargetTriple()
+    let triple = $tripleC
+    LLVMDisposeMessage(tripleC)
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+
+    let dc = LLVMCreateDisasm(triple.cstring, nil, 0, nil, nil)
+    check not dc.isNil
+    defer: LLVMDisasmDispose(dc)
+
+    let nopRet = [0x90'u8, 0xC3'u8]
+    var buf: array[128, char]
+    let size1 = LLVMDisasmInstruction(dc, cast[ptr uint8](unsafeAddr nopRet[0]), 2, 0, addr buf[0], csize_t(buf.len))
+    check size1 > 0
+    let s1 = $cast[cstring](addr buf[0])
+    check "nop" in s1 or "ret" in s1
+
+  test "disassembler: disassembleBytes helper":
+    let tripleC = LLVMGetDefaultTargetTriple()
+    let triple = $tripleC
+    LLVMDisposeMessage(tripleC)
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+
+    let bytes = [0x90'u8, 0xC3'u8]
+    let lines = disassembleBytes(triple, bytes)
+    check lines.len >= 1
+    var joined = ""
+    for l in lines: joined.add(l & " ")
+    check "nop" in joined.toLowerAscii or "ret" in joined.toLowerAscii

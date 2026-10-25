@@ -1073,3 +1073,42 @@ proc LLVMDIBuilderCreateGlobalVariableExpression*(Builder: LLVMDIBuilderRef; Sco
 proc LLVMDIBuilderCreateParameterVariable*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; ArgNo: cuint; File: LLVMMetadataRef; LineNo: cuint; Ty: LLVMMetadataRef; AlwaysPreserve: LLVMBool; Flags: cint): LLVMMetadataRef {.llvmImport.}
 
 proc LLVMGlobalSetMetadata*(Global: LLVMValueRef; Kind: cuint; MD: LLVMMetadataRef) {.llvmImport.}
+
+type
+  LLVMDisasmContextRef* = distinct pointer
+
+  LLVMDisassembler_Option* {.size: sizeof(cuint).} = enum
+    LLVMDisassembler_Option_AsmPrinterVariant = 1
+    LLVMDisassembler_Option_PrintImmHex = 2
+    LLVMDisassembler_Option_UseMarkup = 4
+    LLVMDisassembler_Option_PrintLatency = 8
+
+definePointerOps(LLVMDisasmContextRef)
+
+proc LLVMCreateDisasm*(TripleName: cstring; DisInfo: pointer; TagType: cint; GetOpInfo: pointer; SymbolLookUp: pointer): LLVMDisasmContextRef {.llvmImport.}
+proc LLVMCreateDisasmCPU*(Triple: cstring; CPU: cstring; DisInfo: pointer; TagType: cint; GetOpInfo: pointer; SymbolLookUp: pointer): LLVMDisasmContextRef {.llvmImport.}
+proc LLVMSetDisasmOptions*(DC: LLVMDisasmContextRef; Options: uint64): cint {.llvmImport.}
+proc LLVMDisasmDispose*(DC: LLVMDisasmContextRef) {.llvmImport.}
+proc LLVMDisasmInstruction*(DC: LLVMDisasmContextRef; Bytes: ptr uint8; BytesSize: uint64; PC: uint64; OutString: cstring; OutStringSize: csize_t): csize_t {.llvmImport.}
+
+proc disassembleBytes*(triple: string; bytes: openArray[uint8]; pc: uint64 = 0; options: uint64 = 0): seq[string] =
+  ## Disassembles a sequence of machine code bytes into assembly strings.
+  ## Returns an empty sequence if the disassembler context cannot be created.
+  let dc = LLVMCreateDisasm(triple.cstring, nil, 0, nil, nil)
+  if dc.isNil:
+    return
+  defer: LLVMDisasmDispose(dc)
+
+  if options != 0:
+    discard LLVMSetDisasmOptions(dc, options)
+
+  var pos = 0
+  var buffer: array[1024, char]
+  while pos < bytes.len:
+    let size = LLVMDisasmInstruction(dc, cast[ptr uint8](unsafeAddr bytes[pos]), uint64(bytes.len - pos), pc + uint64(pos), addr buffer[0], csize_t(buffer.len))
+    if size == 0:
+      result.add("<invalid>")
+      inc pos
+    else:
+      result.add($cast[cstring](addr buffer[0]))
+      pos += int(size)

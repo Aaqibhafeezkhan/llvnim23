@@ -1,5 +1,4 @@
 import std/os
-import std/strutils
 import ../src/llvnim23
 
 proc main() =
@@ -7,6 +6,11 @@ proc main() =
 
   discard LLVMInitializeNativeTarget()
   discard LLVMInitializeNativeAsmPrinter()
+
+  when hostCPU == "amd64" or hostCPU == "i386":
+    LLVMInitializeX86Disassembler()
+  elif hostCPU == "arm64":
+    LLVMInitializeAArch64Disassembler()
 
   let ctx = LLVMContextCreate()
   defer: LLVMContextDispose(ctx)
@@ -60,24 +64,30 @@ proc main() =
   defer: LLVMDisposeBinary(br)
 
   echo "\nSections:"
+  var textPtr: cstring = nil
+  var textSize: uint64 = 0
   var secIt = LLVMObjectFileCopySectionIterator(br)
   defer: LLVMDisposeSectionIterator(secIt)
   while LLVMObjectFileIsSectionIteratorAtEnd(br, secIt) == LLVMFalse:
     let name = $LLVMGetSectionName(secIt)
     let size = LLVMGetSectionSize(secIt)
     echo "  ", name, " (size: ", size, " bytes)"
+    if name == ".text":
+      textPtr = LLVMGetSectionContents(secIt)
+      textSize = size
     LLVMMoveToNextSection(secIt)
 
-  echo "\nSymbols:"
-  var symIt = LLVMObjectFileCopySymbolIterator(br)
-  defer: LLVMDisposeSymbolIterator(symIt)
-  while LLVMObjectFileIsSymbolIteratorAtEnd(br, symIt) == LLVMFalse:
-    let name = $LLVMGetSymbolName(symIt)
-    if name.len > 0:
-      let addrr = LLVMGetSymbolAddress(symIt)
-      let size = LLVMGetSymbolSize(symIt)
-      echo "  ", name, " (addr: 0x", addrr.toHex, ", size: ", size, ")"
-    LLVMMoveToNextSymbol(symIt)
+  if not textPtr.isNil and textSize > 0:
+    echo "\nDisassembly of .text:"
+    var bytes = newSeq[uint8](textSize)
+    copyMem(addr bytes[0], textPtr, textSize)
+    
+    let tripleC = LLVMGetDefaultTargetTriple()
+    let triple = $tripleC
+    LLVMDisposeMessage(tripleC)
+    
+    for ins in disassembleBytes(triple, bytes):
+      echo "  ", ins
 
   removeFile(objFile)
 
