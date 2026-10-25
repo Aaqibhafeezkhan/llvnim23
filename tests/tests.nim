@@ -1527,7 +1527,7 @@ suite "llvnim":
     let f = cast[Fn](addrr)
     check f(10'i32, 42'i32) == 42'i32
 
-  test "constexpr: integer add/sub/mul/neg/not/xor":
+  test "constexpr: integer add/sub/neg/not/xor":
     let ctx = LLVMContextCreate()
     defer: LLVMContextDispose(ctx)
     let i32t = LLVMInt32TypeInContext(ctx)
@@ -1554,7 +1554,7 @@ suite "llvnim":
     check LLVMIsNull(c) == LLVMFalse
     check LLVMIsUndef(undef) == LLVMTrue
 
-  test "constexpr: casts trunc/zext/sext/bitcast":
+  test "constexpr: casts trunc/bitcast":
     let ctx = LLVMContextCreate()
     defer: LLVMContextDispose(ctx)
     let i8t = LLVMInt8TypeInContext(ctx)
@@ -3273,3 +3273,77 @@ entry:
     let sRep = LLVMCopyStringRepOfTargetData(td)
     check not sRep.isNil
     LLVMDisposeMessage(sRep)
+
+  test "coverage: missing builder and constexpr functions":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("cov_test", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let ptrt = LLVMPointerTypeInContext(ctx, 0)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let gstr = LLVMBuildGlobalString(b, "test", "gstr")
+    let asc = LLVMBuildAddrSpaceCast(b, gstr, ptrt, "asc")
+    check not asc.isNil
+
+    let mem = LLVMBuildMalloc(b, i32t, "mem")
+    discard LLVMBuildFree(b, mem)
+
+    let arrTy = LLVMArrayType2(i32t, 4)
+    let garr = LLVMAddGlobal(m, arrTy, "garr")
+    let idx = LLVMConstInt(i32t, 0, LLVMFalse)
+    var idxs = [idx, idx]
+    let cgep = LLVMConstInBoundsGEP2(arrTy, garr, addr idxs[0], 2)
+    check not cgep.isNil
+
+    let cNull = LLVMConstPointerNull(ptrt)
+    let cAsc = LLVMConstAddrSpaceCast(cNull, ptrt)
+    let cPc = LLVMConstPointerCast(cNull, ptrt)
+    check not cAsc.isNil
+    check not cPc.isNil
+
+    let destBB = LLVMAppendBasicBlockInContext(ctx, fn, "dest")
+    let gTarget = LLVMAddGlobal(m, ptrt, "target")
+    let br = LLVMBuildIndirectBr(b, gTarget, 1)
+    LLVMAddDestination(br, destBB)
+    
+    LLVMPositionBuilderAtEnd(b, destBB)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+
+  test "coverage: exceptions catchswitch and catchpad":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("cov_exc", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let voidt = LLVMVoidTypeInContext(ctx)
+    let fnTy = LLVMFunctionType(voidt, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    
+    let entry = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, entry)
+
+    let undefPad = LLVMGetUndef(LLVMPointerTypeInContext(ctx, 0))
+    let cs = LLVMBuildCatchSwitch(b, undefPad, LLVMBasicBlockRef(nil), 1, "cs")
+    check not cs.isNil
+
+    let cp = LLVMBuildCatchPad(b, cs, nil, 0, "cp")
+    check not cp.isNil
+
+    let ret = LLVMBuildCatchRet(b, cp, entry)
+    check not ret.isNil
+    
+    let ir = LLVMPrintModuleToString(m)
+    check "catchswitch" in $ir
+    check "catchpad" in $ir
+    check "catchret" in $ir
+    LLVMDisposeMessage(ir)

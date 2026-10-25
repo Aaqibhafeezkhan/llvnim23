@@ -16,7 +16,12 @@ proc store*(b: LLVMBuilderRef; ptrr, val: LLVMValueRef): LLVMValueRef =
   ## Emits a store instruction.
   LLVMBuildStore(b, val, ptrr)
 
+proc load*(b: LLVMBuilderRef; ptrr: LLVMValueRef; ty: LLVMTypeRef; name: string = ""): LLVMValueRef =
+  ## Emits a load instruction with an explicit type.
+  LLVMBuildLoad2(b, ty, ptrr, name.cstring)
+
 proc load*(b: LLVMBuilderRef; ptrr: LLVMValueRef; name: string = ""): LLVMValueRef =
-  ## Emits a load instruction. Assumes 'ptr' comes from an alloca.
+  ## Emits a load instruction. Infers the type from the pointer, but requires it to be an alloca.
   let ty = LLVMGetAllocatedType(ptrr)
-  result = LLVMBuildLoad2(b, ty, ptrr, name.cstring)
+  doAssert not ty.isNil, "dx.load: cannot infer type from pointer (must be an alloca). Provide explicit LLVMTypeRef."
+  LLVMBuildLoad2(b, ty, ptrr, name.cstring)

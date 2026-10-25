@@ -29,11 +29,13 @@ template elseBlock*(iface: IfElseBlocks; body: untyped) =
   LLVMPositionBuilderAtEnd(iface.b, iface.elseBB)
   body
 
-template mergeBlock*(iface: IfElseBlocks; body: untyped) =
-  ## Positions the builder at the 'merge' block and executes the body.
-  LLVMPositionBuilderAtEnd(iface.b, iface.mergeBB)
-  body
-
 proc brToMerge*(iface: IfElseBlocks) =
   ## Emits an unconditional branch to the merge block.
+  doAssert not iface.mergeBB.isNil, "Cannot branch to merge: merge block was not created."
   discard LLVMBuildBr(iface.b, iface.mergeBB)
+
+template mergeBlock*(iface: IfElseBlocks; body: untyped) =
+  ## Positions the builder at the 'merge' block and executes the body.
+  doAssert not iface.mergeBB.isNil, "Cannot enter merge block: merge block was not created."
+  LLVMPositionBuilderAtEnd(iface.b, iface.mergeBB)
+  body

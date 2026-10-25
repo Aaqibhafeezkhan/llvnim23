@@ -661,7 +661,6 @@ proc LLVMStructTypeInContext*(C: LLVMContextRef; ElementTypes: ptr LLVMTypeRef; 
 proc LLVMStructCreateNamed*(C: LLVMContextRef; Name: cstring): LLVMTypeRef {.llvmImport.}
 proc LLVMStructSetBody*(StructTy: LLVMTypeRef; ElementTypes: ptr LLVMTypeRef; ElementCount: cuint; Packed: LLVMBool) {.llvmImport.}
 proc LLVMStructGetTypeAtIndex*(StructTy: LLVMTypeRef; i: cuint): LLVMTypeRef {.llvmImport.}
-proc LLVMStructName*(StructTy: LLVMTypeRef): cstring {.llvmImport.}
 proc LLVMGetStructName*(StructTy: LLVMTypeRef): cstring {.llvmImport.}
 proc LLVMIsPackedStruct*(StructTy: LLVMTypeRef): LLVMBool {.llvmImport.}
 proc LLVMIsOpaqueStruct*(StructTy: LLVMTypeRef): LLVMBool {.llvmImport.}
@@ -960,7 +959,6 @@ proc LLVMDIBuilderCreateBasicType*(Builder: LLVMDIBuilderRef; Name: cstring; Nam
 proc LLVMDIBuilderCreateSubroutineType*(Builder: LLVMDIBuilderRef; File: LLVMMetadataRef; ParameterTypes: ptr LLVMMetadataRef; NumParameterTypes: cuint; Flags: cint): LLVMMetadataRef {.llvmImport.}
 
 proc LLVMDIBuilderCreateAutoVariable*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNo: cuint; Ty: LLVMMetadataRef; AlwaysPreserve: LLVMBool; Flags: cint; AlignInBits: cuint): LLVMMetadataRef {.llvmImport.}
-proc LLVMDIBuilderInsertDeclareRecordAtEnd*(Builder: LLVMDIBuilderRef; Storage: LLVMValueRef; VarInfo: LLVMMetadataRef; Expr: LLVMMetadataRef; DebugLoc: LLVMMetadataRef): LLVMValueRef {.llvmImport.}
 
 proc LLVMDIBuilderInsertDeclareRecordAtEnd*(Builder: LLVMDIBuilderRef; Storage: LLVMValueRef; VarInfo: LLVMMetadataRef; Expr: LLVMMetadataRef; DebugLoc: LLVMMetadataRef; Block: LLVMBasicBlockRef): LLVMDbgRecordRef {.llvmImport.}
 proc LLVMDIBuilderCreateExpression*(Builder: LLVMDIBuilderRef; Addr: ptr uint64; Length: csize_t): LLVMMetadataRef {.llvmImport.}

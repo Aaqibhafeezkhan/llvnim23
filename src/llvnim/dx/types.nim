@@ -27,3 +27,8 @@ proc struct*(ctx: LLVMContextRef; elems: openArray[LLVMTypeRef]; packed: bool = 
   let packedBool = if packed: LLVMTrue else: LLVMFalse
   let elemsPtr = if elems.len > 0: cast[ptr LLVMTypeRef](unsafeAddr elems[0]) else: nil
   LLVMStructTypeInContext(ctx, elemsPtr, cuint(elems.len), packedBool)
+
+proc constInt*(ty: LLVMTypeRef; val: SomeInteger; signExtend: bool = true): LLVMValueRef =
+  ## Creates an integer constant. Safely handles negative values without manual casts.
+  let ext = if signExtend: LLVMTrue else: LLVMFalse
+  LLVMConstInt(ty, cast[culonglong](val), ext)
