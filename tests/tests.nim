@@ -1971,7 +1971,7 @@ suite "llvnim":
       check not tm.isNil
       defer: LLVMDisposeTargetMachine(tm)
 
-      let asmFile = "/tmp/llvnim23_test.s"
+      let asmFile = "/tmp/llvnim_test.s"
       var emitErr: cstring
       let resAsm = LLVMTargetMachineEmitToFile(tm, m, asmFile.cstring, LLVMAssemblyFile, emitErr)
       check resAsm == LLVMFalse
@@ -1985,7 +1985,7 @@ suite "llvnim":
       check "add64" in asmContent
       removeFile(asmFile)
 
-      let objFile = "/tmp/llvnim23_test.o"
+      let objFile = "/tmp/llvnim_test.o"
       emitErr = nil
       let resObj = LLVMTargetMachineEmitToFile(tm, m, objFile.cstring, LLVMObjectFile, emitErr)
       check resObj == LLVMFalse
@@ -2485,7 +2485,7 @@ entry:
     let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
     let cu = LLVMDIBuilderCreateCompileUnit(
       diBuilder, LLVMDWARFSourceLanguageC, file,
-      "llvnim23", csize_t(8), LLVMFalse,
+      "llvnim", csize_t(8), LLVMFalse,
       "", csize_t(0), 0,
       "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse,
       "", csize_t(0), "", csize_t(0)
@@ -2649,7 +2649,7 @@ entry:
     LLVMPositionBuilderAtEnd(b, bb)
     discard LLVMBuildRet(b, LLVMConstInt(i32t, 99, LLVMFalse))
 
-    let path = "/tmp/llvnim23_test.bc"
+    let path = "/tmp/llvnim_test.bc"
     check writeBitcodeToFile(m, path)
     check fileExists(path)
 
@@ -2706,7 +2706,7 @@ entry:
     let tm = LLVMCreateTargetMachine(target, triple.cstring, "generic", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault)
     defer: LLVMDisposeTargetMachine(tm)
 
-    let objFile = "/tmp/llvnim23_objtest.o"
+    let objFile = "/tmp/llvnim_objtest.o"
     var emitErr: cstring
     check LLVMTargetMachineEmitToFile(tm, m, objFile.cstring, LLVMObjectFile, emitErr) == LLVMFalse
     check fileExists(objFile)
@@ -2773,7 +2773,7 @@ entry:
     let tm = LLVMCreateTargetMachine(target, triple.cstring, "generic", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault)
     defer: LLVMDisposeTargetMachine(tm)
 
-    let objFile = "/tmp/llvnim23_objtest2.o"
+    let objFile = "/tmp/llvnim_objtest2.o"
     var emitErr: cstring
     check LLVMTargetMachineEmitToFile(tm, m, objFile.cstring, LLVMObjectFile, emitErr) == LLVMFalse
 

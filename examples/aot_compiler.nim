@@ -47,7 +47,7 @@ proc main() =
   defer: LLVMDisposeTargetMachine(tm)
 
   # Emit to object file
-  let objFile = "/tmp/llvnim23_aot_example.o"
+  let objFile = "/tmp/llvnim_aot_example.o"
   var emitErr: cstring
   if LLVMTargetMachineEmitToFile(tm, m, objFile.cstring, LLVMObjectFile, emitErr) != LLVMFalse:
     echo "Failed to emit object file: ", emitErr

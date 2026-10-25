@@ -27,7 +27,7 @@ proc main() =
   defer: LLVMDisposeDIBuilder(diBuilder)
 
   let file = LLVMDIBuilderCreateFile(diBuilder, "example.nim", csize_t(11), ".", csize_t(1))
-  let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "llvnim23", csize_t(8), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+  let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "llvnim", csize_t(8), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
   
   let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "long", csize_t(4), 64, 0x05, 0)
   var paramTypes = [intTy]
@@ -70,7 +70,7 @@ proc main() =
   let tm = LLVMCreateTargetMachine(target, triple.cstring, "generic", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault)
   defer: LLVMDisposeTargetMachine(tm)
 
-  let objFile = "/tmp/llvnim23_di_example.o"
+  let objFile = "/tmp/llvnim_di_example.o"
   var emitErr: cstring
   if LLVMTargetMachineEmitToFile(tm, m, objFile.cstring, LLVMObjectFile, emitErr) == LLVMFalse:
     echo "Successfully compiled with debug info to: ", objFile
