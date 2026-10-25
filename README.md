@@ -2,8 +2,8 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Nim](https://img.shields.io/badge/Nim-%E2%89%A52.2.10-orange.svg)](https://nim-lang.org/)
-[![OpenVINO](https://img.shields.io/badge/LLVM-21.1.x-6b4fbb.svg)](https://llvm.org//)
-[![Status](https://img.shields.io/badge/status-v0.2.0-brightgreen.svg)](https://github.com/xlebore3o4ka/llvnim/releases/tag/v0.2.0)
+[![LLVM](https://img.shields.io/badge/LLVM-23.1.x-6b4fbb.svg)](https://llvm.org/)
+[![Status](https://img.shields.io/badge/status-v0.3.0-brightgreen.svg)](https://github.com/xlebore3o4ka/llvnim23/releases/tag/v0.3.0)
 
 Hand-written Nim bindings for the LLVM-C API, version 23.1.x. You call LLVM directly from Nim to build IR, run the verifier, optimize with the new PassBuilder, and execute code via LLJIT or MCJIT.
 
@@ -131,23 +131,19 @@ withContext(ctx):
       doAssert verifyModule(m).ok
 ```
 
-See `tests/` for atomics, passes, target machine emit, attributes, metadata, aliases, and MCJIT.
+## Examples
+
+See the `examples/` directory for fully working scripts:
+- `jit_calculator.nim`: Optimizing and executing code in memory via LLJIT.
+- `aot_compiler.nim`: Compiling to an object file and inspecting it via `Object.h`.
+- `di_compiler.nim`: Generating DWARF debug info for a function and emitting an object file.
 
 ## What it covers
 
-- Core refs (context, module, builder, basic block, value, type) with `==`, `isNil`, `$`, `hash`.
-- Types: integers, floats, void, pointer, vector, array, struct.
-- IR builders: arithmetic, `icmp`/`fcmp`, branches, `switch`, `phi`, `select`, casts, `alloca`/`load`/`store`, GEP, calls, aggregates.
-- Constants and constexpr: int, real, null, undef, `allones`, `add`/`sub`/`xor`, casts, GEP, `extractelement`/`insertelement`/`shufflevector`.
-- Globals, string globals (`addGlobalString`), linkage, unnamed address.
-- Atomics: `atomicrmw`, `cmpxchg`, `fence`.
-- Exceptions: `landingpad`, `resume`, `catchpad`, `cleanuppad`.
-- `verifyModule` (frees the error message for you).
-- PassBuilder (`LLVMRunPasses`, `LLVMRunPassesOnFunction`).
-- TargetMachine and AOT emit (assembly, object).
-- MCJIT (`createJIT`, `LLVMGetFunctionAddress`) and LLJIT (`createLLJIT`, `addModule`, `lookup`).
-- Attributes (enum, string, target-dependent), metadata, aliases.
-- Per-arch and `LLVMInitializeAll*` / `LLVMInitializeNative*` initializers.
+- **Core IR**: Types (int, float, void, pointer, structs, arrays, vectors), Builder (arithmetic, casts, control flow, aggregates), Constants.
+- **Advanced Features**: PassBuilder (`LLVMRunPasses`), TargetMachine (AOT compilation to `.o` and `.s`), MCJIT, LLJIT, Exceptions (`landingpad`), Atomics (`atomicrmw`, `cmpxchg`).
+- **DebugInfo (DI)**: Complete DWARF generation support, including `DICompileUnit`, `DISubprogram`, local/global variables, function parameters, structs, pointers, arrays, and lexical blocks.
+- **Utilities**: `IRReader` (parsing `.ll`), `BitReader`/`BitWriter` (reading/writing `.bc`), `Linker` (merging modules), `Object.h` (reading symbols/sections from `.o` files), Comdat.
 
 ## Gotchas
 
@@ -160,9 +156,9 @@ See `tests/` for atomics, passes, target machine emit, attributes, metadata, ali
 
 ## Limitations
 
-- Not full LLVM-C coverage. Debug info (DI*), object loaders, and most ORC layers beyond LLJIT are not bound.
+- Not full LLVM-C coverage. Object loaders, most ORC layers beyond LLJIT, and some advanced analysis APIs are not bound.
 - Only dynamic linking via `dynlib`. Static linking is not wired up.
-- The AOT emit test writes to `/tmp` and assumes a Unix-like system.
+- The AOT emit tests write to `/tmp` and assume a Unix-like system.
 
 ## License
 
