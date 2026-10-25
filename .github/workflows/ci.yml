@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install LLVM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-dev
+          
+      - name: Setup Nim
+        uses: jirosan/setup-nim-action@v2
+        with:
+          nim-version: 'stable'
+          
+      - name: Run tests
+        run: nim c -r --lineTrace:on --stackTrace:on -o:tests/tests tests/tests.nim
