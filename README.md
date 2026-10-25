@@ -148,7 +148,7 @@ See the `examples/` directory for fully working scripts:
 
 ## Gotchas
 
-- Version is fixed to LLVM 23.1.x. Different major.minor fails `checkVersion`.
+- Version is fixed to LLVM 23.1.x. Different major.minor fails `checkVersion`. Future LLVM releases (24+) are planned to be supported.
 - `LLVMDisposeExecutionEngine` frees the module. Do not dispose it separately. `addModule` in LLJIT transfers ownership; on error it does not. Use `addModuleSafe` / `createJITSafe` to prevent double-free.
 - Free strings from `LLVMPrint*ToString` with `LLVMDisposeMessage`.
 - A context is not thread-safe. Use one context per thread.
