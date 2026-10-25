@@ -3,7 +3,7 @@
 version       = "0.2.0"
 author        = "xlebore3o4ka"
 description   = "Nim bindings for the LLVM-C API, version 23.1.x"
-license       = "AGPL-3.0"
+license       = "MIT"
 srcDir        = "src"
 
 # Dependencies

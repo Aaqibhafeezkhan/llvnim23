@@ -163,4 +163,4 @@ See `tests/` for atomics, passes, target machine emit, attributes, metadata, ali
 
 ## License
 
-AGPL-3.0. Author: xlebore3o4ka.
+MIT Copyright (c) 2026 https://github.com/xlebore3o4ka

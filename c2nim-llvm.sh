@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 https://github.com/xlebore3o4ka
+
 set -euo pipefail
 
 if [ $# -ne 2 ]; then

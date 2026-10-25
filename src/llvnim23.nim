@@ -1,4 +1,5 @@
-# llvnim23.nim
+# Copyright (c) 2026 https://github.com/xlebore3o4ka
+#
 # Bindings for the LLVM-C API, version 23.1.1.
 #
 # Target/JIT initialization functions (LLVMInitialize*) are declared at the
