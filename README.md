@@ -108,6 +108,10 @@ type AddFn = proc(a, b: int64): int64 {.cdecl.}
 echo cast[AddFn](addr)(20'i64, 22'i64)  # 42
 ```
 
+### Developer Experience (DX) Helpers
+
+If you are writing a compiler and want to reduce boilerplate, check out the `llvnim/dx` module. It contains helpers to create functions, iterate over basic blocks, and manage SSA values more idiomatically. See [docs/dx.md](docs/dx.md) for examples.
+
 ### Idiomatic API
 
 If you prefer a more Nim-friendly interface, import the `idiomatic` module. It automatically generates `camelCase` wrappers for all `LLVM*` functions (e.g., `contextCreate()` instead of `LLVMContextCreate()`) and provides RAII templates for safe memory management.

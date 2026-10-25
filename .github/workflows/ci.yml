@@ -30,6 +30,10 @@ jobs:
           nim-version: 'stable'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run tests
+      - name: Run core tests
         run: |
           nim c -r --lineTrace:on --stackTrace:on -o:tests/tests tests/tests.nim
+
+      - name: Run DX tests
+        run: |
+          nim c -r --lineTrace:on --stackTrace:on -o:tests/testsdx tests/testsdx.nim
