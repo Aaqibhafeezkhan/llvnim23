@@ -87,3 +87,99 @@ suite "llvnim dx":
     for inst in entry.reversedInstructions:
       inc instCount
     check instCount == 2
+
+  test "controlflow: if/else building and JIT":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("dx_if", ctx)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let (fn, entry) = createFunction(m, ctx, "max", i32t, [i32t, i32t])
+    
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, entry)
+
+    let a = LLVMGetParam(fn, 0)
+    let c = LLVMGetParam(fn, 1)
+    let cond = LLVMBuildICmp(b, LLVMIntSGT, a, c, "cmp")
+
+    let iface = createIfElse(b, ctx, fn, cond, createMerge = false)
+
+    iface.thenBlock:
+      discard LLVMBuildRet(b, a)
+
+    iface.elseBlock:
+      discard LLVMBuildRet(b, c)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, jitErr) = createLLJIT()
+    check jitErr.len == 0
+    check addModule(jit, m).len == 0
+
+    let (addrr, lookupErr) = lookup(jit, "max")
+    check lookupErr.len == 0
+
+    type MaxFn = proc(x, y: int32): int32 {.cdecl.}
+    let maxFn = cast[MaxFn](addrr)
+    check maxFn(10, 20) == 20
+    check maxFn(42, 7) == 42
+
+  test "controlflow: if/else with merge and phi":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("dx_merge", ctx)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let (fn, entry) = createFunction(m, ctx, "select_val", i32t, [i32t, i32t])
+    
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, entry)
+
+    let a = LLVMGetParam(fn, 0)
+    let c = LLVMGetParam(fn, 1)
+    
+    let cond = LLVMBuildICmp(b, LLVMIntSLT, a, c, "cmp")
+    let iface = createIfElse(b, ctx, fn, cond)
+
+    var valFromThen: LLVMValueRef
+    iface.thenBlock:
+      valFromThen = LLVMBuildAdd(b, a, c, "sum")
+      iface.brToMerge()
+
+    var valFromElse: LLVMValueRef
+    iface.elseBlock:
+      valFromElse = LLVMBuildSub(b, a, c, "diff")
+      iface.brToMerge()
+
+    iface.mergeBlock:
+      let phi = LLVMBuildPhi(b, i32t, "result")
+      var vals = [valFromThen, valFromElse]
+      var blocks = [iface.thenBB, iface.elseBB]
+      LLVMAddIncoming(phi, addr vals[0], addr blocks[0], 2)
+      discard LLVMBuildRet(b, phi)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, jitErr) = createLLJIT()
+    check jitErr.len == 0
+    check addModule(jit, m).len == 0
+
+    let (addrr, lookupErr) = lookup(jit, "select_val")
+    check lookupErr.len == 0
+
+    type Fn = proc(x, y: int32): int32 {.cdecl.}
+    let f = cast[Fn](addrr)
+    
+    check f(2, 5) == 7
+    check f(10, 3) == 7
