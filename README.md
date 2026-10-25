@@ -104,6 +104,30 @@ type AddFn = proc(a, b: int64): int64 {.cdecl.}
 echo cast[AddFn](addr)(20'i64, 22'i64)  # 42
 ```
 
+## Idiomatic API
+
+If you prefer a more Nim-friendly interface, import the `idiomatic` module. It automatically generates `camelCase` wrappers for all `LLVM*` functions (e.g., `contextCreate()` instead of `LLVMContextCreate()`) and provides RAII templates for safe memory management.
+
+```nim
+import llvnim23/idiomatic
+
+withContext(ctx):
+  withModule(ctx, "hello", m):
+    withBuilder(ctx, b):
+      let i32t = int32TypeInContext(ctx)
+      var params = [i32t, i32t]
+      let fnTy = functionType(i32t, addr params[0], 2, LLVMFalse)
+      let fn = addFunction(m, "add", fnTy)
+      
+      let bb = appendBasicBlockInContext(ctx, fn, "entry")
+      positionBuilderAtEnd(b, bb)
+      
+      let sum = buildAdd(b, getParam(fn, 0), getParam(fn, 1), "sum")
+      discard buildRet(b, sum)
+      
+      doAssert verifyModule(m).ok
+```
+
 See `tests/` for atomics, passes, target machine emit, attributes, metadata, aliases, and MCJIT.
 
 ## What it covers
@@ -125,7 +149,7 @@ See `tests/` for atomics, passes, target machine emit, attributes, metadata, ali
 ## Gotchas
 
 - Version is fixed to LLVM 23.1.x. Different major.minor fails `checkVersion`.
-- `LLVMDisposeExecutionEngine` frees the module. Do not dispose it separately. `addModule` in LLJIT transfers ownership; on error it does not.
+- `LLVMDisposeExecutionEngine` frees the module. Do not dispose it separately. `addModule` in LLJIT transfers ownership; on error it does not. Use `addModuleSafe` / `createJITSafe` to prevent double-free.
 - Free strings from `LLVMPrint*ToString` with `LLVMDisposeMessage`.
 - A context is not thread-safe. Use one context per thread.
 - `LLVMInitializeNative*` supports amd64, i386, arm64. Other CPUs fail at compile time.
