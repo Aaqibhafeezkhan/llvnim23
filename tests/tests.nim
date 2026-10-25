@@ -2563,3 +2563,74 @@ entry:
     check "!DILocalVariable" in $ir
     check "#dbg_declare" in $ir
     LLVMDisposeMessage(ir)
+
+  test "linker: merge two modules":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+
+    let dest = LLVMModuleCreateWithNameInContext("dest", ctx)
+    defer: LLVMDisposeModule(dest)
+    let src = LLVMModuleCreateWithNameInContext("src", ctx)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+
+    # In src: define funcC, then funcB calls funcC
+    let fnC = LLVMAddFunction(src, "funcC", fnTy)
+    let bbC = LLVMAppendBasicBlockInContext(ctx, fnC, "entry")
+    let bC = LLVMCreateBuilderInContext(ctx)
+    LLVMPositionBuilderAtEnd(bC, bbC)
+    discard LLVMBuildRet(bC, LLVMConstInt(i32t, 3, LLVMFalse))
+    LLVMDisposeBuilder(bC)
+
+    let fnB = LLVMAddFunction(src, "funcB", fnTy)
+    let bbB = LLVMAppendBasicBlockInContext(ctx, fnB, "entry")
+    let bB = LLVMCreateBuilderInContext(ctx)
+    LLVMPositionBuilderAtEnd(bB, bbB)
+    let callC = LLVMBuildCall2(bB, fnTy, fnC, nil, 0, "")
+    discard LLVMBuildRet(bB, callC)
+    LLVMDisposeBuilder(bB)
+
+    let fnA = LLVMAddFunction(dest, "funcA", fnTy)
+    let bbA = LLVMAppendBasicBlockInContext(ctx, fnA, "entry")
+    let bA = LLVMCreateBuilderInContext(ctx)
+    LLVMPositionBuilderAtEnd(bA, bbA)
+    discard LLVMBuildRet(bA, LLVMConstInt(i32t, 1, LLVMFalse))
+    LLVMDisposeBuilder(bA)
+
+    let rc = LLVMLinkModules2(dest, src)
+    check rc == LLVMFalse
+
+    let ir = LLVMPrintModuleToString(dest)
+    check "funcA" in $ir
+    check "funcB" in $ir
+    check "funcC" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "linker: duplicate definitions fail":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+
+    let dest = LLVMModuleCreateWithNameInContext("dest2", ctx)
+    defer: LLVMDisposeModule(dest)
+    let src = LLVMModuleCreateWithNameInContext("src2", ctx)
+    
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+
+    let fnD = LLVMAddFunction(dest, "funcA", fnTy)
+    let bbD = LLVMAppendBasicBlockInContext(ctx, fnD, "entry")
+    let bD = LLVMCreateBuilderInContext(ctx)
+    LLVMPositionBuilderAtEnd(bD, bbD)
+    discard LLVMBuildRet(bD, LLVMConstInt(i32t, 1, LLVMFalse))
+    LLVMDisposeBuilder(bD)
+
+    let fnS = LLVMAddFunction(src, "funcA", fnTy)
+    let bbS = LLVMAppendBasicBlockInContext(ctx, fnS, "entry")
+    let bS = LLVMCreateBuilderInContext(ctx)
+    LLVMPositionBuilderAtEnd(bS, bbS)
+    discard LLVMBuildRet(bS, LLVMConstInt(i32t, 2, LLVMFalse))
+    LLVMDisposeBuilder(bS)
+
+    let rc = LLVMLinkModules2(dest, src)
+    check rc != LLVMFalse

@@ -964,3 +964,7 @@ proc LLVMDIBuilderInsertDeclareRecordAtEnd*(Builder: LLVMDIBuilderRef; Storage: 
 
 proc LLVMDIBuilderInsertDeclareRecordAtEnd*(Builder: LLVMDIBuilderRef; Storage: LLVMValueRef; VarInfo: LLVMMetadataRef; Expr: LLVMMetadataRef; DebugLoc: LLVMMetadataRef; Block: LLVMBasicBlockRef): LLVMDbgRecordRef {.llvmImport.}
 proc LLVMDIBuilderCreateExpression*(Builder: LLVMDIBuilderRef; Addr: ptr uint64; Length: csize_t): LLVMMetadataRef {.llvmImport.}
+
+proc LLVMLinkModules2*(Dest: LLVMModuleRef; Src: LLVMModuleRef): LLVMBool {.llvmImport.}
+  ## Links Src into Dest. On success, Dest owns Src's contents, and Src is destroyed.
+  ## Returns 0 on success, 1 on error (e.g., duplicate symbols).
