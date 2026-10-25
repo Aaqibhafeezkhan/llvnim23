@@ -246,3 +246,23 @@ suite "llvnim dx":
     check LLVMIsPackedStruct(packedTy) == LLVMTrue
 
     check ptrTy(ctx) == LLVMPointerTypeInContext(ctx, 0)
+
+  test "strings: string global and constant":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("str_test", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let c = stringConstant(ctx, "hello")
+    check not c.isNil
+    let s = LLVMPrintValueToString(c)
+    check "c\"hello\\00\"" in $s
+    LLVMDisposeMessage(s)
+
+    let g = stringGlobal(m, ctx, "world", "my_str")
+    check not g.isNil
+    
+    let ir = LLVMPrintModuleToString(m)
+    check "@my_str = private unnamed_addr constant" in $ir
+    check "c\"world\\00\"" in $ir
+    LLVMDisposeMessage(ir)
