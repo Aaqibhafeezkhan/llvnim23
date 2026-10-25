@@ -1142,3 +1142,43 @@ proc LLVMGetBasicBlockName*(BB: LLVMBasicBlockRef): cstring {.llvmImport.}
 
 proc LLVMTypeOf*(Val: LLVMValueRef): LLVMTypeRef {.llvmImport.}
 proc LLVMGetAllocatedType*(Alloca: LLVMValueRef): LLVMTypeRef {.llvmImport.}
+
+proc LLVMGetNumOperands*(Val: LLVMValueRef): cint {.llvmImport.}
+proc LLVMGetOperand*(Val: LLVMValueRef; Index: cuint): LLVMValueRef {.llvmImport.}
+proc LLVMSetOperand*(User: LLVMValueRef; Index: cuint; Val: LLVMValueRef) {.llvmImport.}
+
+proc LLVMGetInstructionOpcode*(Inst: LLVMValueRef): cint {.llvmImport.}
+proc LLVMGetBasicBlockTerminator*(BB: LLVMBasicBlockRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetEntryBasicBlock*(Fn: LLVMValueRef): LLVMBasicBlockRef {.llvmImport.}
+
+proc LLVMGetNumSuccessors*(Term: LLVMValueRef): cuint {.llvmImport.}
+proc LLVMGetSuccessor*(Term: LLVMValueRef; i: cuint): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMSetSuccessor*(Term: LLVMValueRef; i: cuint; Block: LLVMBasicBlockRef) {.llvmImport.}
+
+proc LLVMGetCondition*(Branch: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMSetCondition*(Branch: LLVMValueRef; Cond: LLVMValueRef) {.llvmImport.}
+
+proc LLVMIsDeclaration*(Global: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMInstructionEraseFromParent*(Inst: LLVMValueRef) {.llvmImport.}
+proc LLVMDeleteInstruction*(Inst: LLVMValueRef) {.llvmImport.}
+
+proc LLVMGetCurrentDebugLocation2*(Builder: LLVMBuilderRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMGetMetadata*(Val: LLVMValueRef; KindID: cuint): LLVMValueRef {.llvmImport.}
+proc LLVMInstructionGetDebugLoc*(Inst: LLVMValueRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMInstructionGetAllMetadataOtherThanDebugLoc*(Inst: LLVMValueRef; MDs: var LLVMValueRef; NumMDs: var cuint) {.llvmImport.}
+
+type
+  LLVMTargetDataRef* = distinct pointer
+
+definePointerOps(LLVMTargetDataRef)
+
+proc LLVMCreateTargetData*(StringRep: cstring): LLVMTargetDataRef {.llvmImport.}
+proc LLVMCreateTargetDataLayout*(T: LLVMTargetMachineRef): LLVMTargetDataRef {.llvmImport.}
+proc LLVMDisposeTargetData*(TD: LLVMTargetDataRef) {.llvmImport.}
+proc LLVMCopyStringRepOfTargetData*(TD: LLVMTargetDataRef): cstring {.llvmImport.}
+
+proc LLVMSizeOfTypeInBits*(TD: LLVMTargetDataRef; Ty: LLVMTypeRef): uint64 {.llvmImport.}
+proc LLVMStoreSizeOfType*(TD: LLVMTargetDataRef; Ty: LLVMTypeRef): uint64 {.llvmImport.}
+proc LLVMABISizeOfType*(TD: LLVMTargetDataRef; Ty: LLVMTypeRef): uint64 {.llvmImport.}
+proc LLVMABIAlignmentOfType*(TD: LLVMTargetDataRef; Ty: LLVMTypeRef): cuint {.llvmImport.}
+proc LLVMOffsetOfElement*(TD: LLVMTargetDataRef; StructTy: LLVMTypeRef; Element: cuint): uint64 {.llvmImport.}

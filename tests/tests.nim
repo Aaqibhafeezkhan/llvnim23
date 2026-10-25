@@ -5,6 +5,7 @@ import std/strutils
 import ../src/llvnim
 import std/os
 import ../src/llvnim/idiomatic
+import ../src/llvnim/dx
 
 suite "llvnim":
 
@@ -3111,3 +3112,164 @@ entry:
     var joined = ""
     for l in lines: joined.add(l & " ")
     check "nop" in joined.toLowerAscii or "ret" in joined.toLowerAscii
+
+  test "ir analysis: operands and successors":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("analysis", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var params = [i32t, i32t]
+    let fnTy = LLVMFunctionType(i32t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    check LLVMIsDeclaration(fn) == LLVMTrue
+
+    let entry = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let thenBB = LLVMAppendBasicBlockInContext(ctx, fn, "then")
+    let elseBB = LLVMAppendBasicBlockInContext(ctx, fn, "else")
+
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, entry)
+
+    check LLVMGetEntryBasicBlock(fn) == entry
+
+    let a = LLVMGetParam(fn, 0)
+    let c = LLVMGetParam(fn, 1)
+    let cond = LLVMBuildICmp(b, LLVMIntEQ, a, c, "cond")
+    let br = LLVMBuildCondBr(b, cond, thenBB, elseBB)
+
+    check LLVMGetNumOperands(br) == 3
+    check LLVMGetOperand(br, 0) == cond
+    check LLVMGetCondition(br) == cond
+    
+    check LLVMGetNumSuccessors(br) == 2
+    check LLVMGetSuccessor(br, 0) == thenBB
+    check LLVMGetSuccessor(br, 1) == elseBB
+
+    LLVMPositionBuilderAtEnd(b, thenBB)
+    let sum = LLVMBuildAdd(b, a, c, "sum")
+    check LLVMGetNumOperands(sum) == 2
+    discard LLVMBuildRet(b, sum)
+
+    LLVMPositionBuilderAtEnd(b, elseBB)
+    discard LLVMBuildRet(b, c)
+
+    check LLVMGetBasicBlockTerminator(thenBB) != nil
+    let term = LLVMGetBasicBlockTerminator(thenBB)
+    check LLVMGetInstructionOpcode(term) == 1
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+  test "ir analysis: erase instruction":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("erase", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var params = [i32t, i32t]
+    let fnTy = LLVMFunctionType(i32t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let entry = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, entry)
+
+    let a = LLVMGetParam(fn, 0)
+    let c = LLVMGetParam(fn, 1)
+    
+    let sum = LLVMBuildAdd(b, a, c, "sum")
+    let diff = LLVMBuildSub(b, a, c, "diff")
+    
+    discard LLVMBuildRet(b, sum)
+
+    var count = 0
+    for inst in entry.instructions:
+      inc count
+    check count == 3
+
+    LLVMInstructionEraseFromParent(diff)
+
+    count = 0
+    for inst in entry.instructions:
+      inc count
+    check count == 2
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+  test "metadata: instruction debug location":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("md_loc", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let voidt = LLVMVoidTypeInContext(ctx)
+    let fnTy = LLVMFunctionType(voidt, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+    let subTy = LLVMDIBuilderCreateSubroutineType(diBuilder, file, nil, 0, 0)
+    let sp = LLVMDIBuilderCreateFunction(diBuilder, cu, "f", csize_t(1), "f", csize_t(1), file, 1, subTy, LLVMFalse, LLVMTrue, 1, 0, LLVMFalse)
+    LLVMSetSubprogram(fn, sp)
+
+    let loc = LLVMDIBuilderCreateDebugLocation(ctx, 5, 10, sp, LLVMMetadataRef(nil))
+    LLVMSetCurrentDebugLocation2(b, loc)
+    check LLVMGetCurrentDebugLocation2(b) == loc
+
+    let ret = LLVMBuildRetVoid(b)
+    check LLVMInstructionGetDebugLoc(ret) == loc
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+  test "target data: sizes and alignment":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("td_test", ctx)
+    defer: LLVMDisposeModule(m)
+
+    discard LLVMInitializeNativeTarget()
+    let tripleC = LLVMGetDefaultTargetTriple()
+    let triple = $tripleC
+    LLVMDisposeMessage(tripleC)
+
+    var target: LLVMTargetRef
+    var errMsg: cstring
+    discard LLVMGetTargetFromTriple(triple.cstring, target, errMsg)
+    let tm = LLVMCreateTargetMachine(target, triple.cstring, "generic", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault)
+    defer: LLVMDisposeTargetMachine(tm)
+
+    let td = LLVMCreateTargetDataLayout(tm)
+    check not td.isNil
+    defer: LLVMDisposeTargetData(td)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let i64t = LLVMInt64TypeInContext(ctx)
+    
+    check LLVMSizeOfTypeInBits(td, i32t) == 32
+    check LLVMStoreSizeOfType(td, i32t) == 4
+    check LLVMABIAlignmentOfType(td, i64t) == 8
+
+    var elems = [i32t, i64t]
+    let st = LLVMStructTypeInContext(ctx, addr elems[0], 2, LLVMFalse)
+    check LLVMABISizeOfType(td, st) == 16
+    check LLVMOffsetOfElement(td, st, 0) == 0
+    check LLVMOffsetOfElement(td, st, 1) == 8
+
+    let sRep = LLVMCopyStringRepOfTargetData(td)
+    check not sRep.isNil
+    LLVMDisposeMessage(sRep)
