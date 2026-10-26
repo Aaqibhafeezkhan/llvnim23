@@ -30,6 +30,9 @@ jobs:
           nim-version: 'stable'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check llvm-config
+        run: llvm-config --version
+
       - name: Run core tests
         run: |
           nim c -r --lineTrace:on --stackTrace:on -o:tests/tests tests/tests.nim
@@ -37,3 +40,7 @@ jobs:
       - name: Run DX tests
         run: |
           nim c -r --lineTrace:on --stackTrace:on -o:tests/testsdx tests/testsdx.nim
+
+      - name: Run shim tests
+        run: |
+          nim c -r --lineTrace:on --stackTrace:on -o:tests/testshim tests/testshim.nim
