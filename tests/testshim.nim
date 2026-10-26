@@ -70,23 +70,21 @@ suite "shim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
-    # NOTE: No defer to dispose of JIT because ctx and m are transferred to it
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check err.len == 0
 
     let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
     check jdErr.len == 0
 
-    let ctx = LLVMContextCreate()
-    let m = LLVMModuleCreateWithNameInContext("m", ctx)
-    let i32t = LLVMInt32TypeInContext(ctx)
-    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
-    let fn = LLVMAddFunction(m, "answer", fnTy)
-    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
-    let b = LLVMCreateBuilderInContext(ctx)
-    LLVMPositionBuilderAtEnd(b, bb)
-    discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
-
-    check addModuleToDylib(jit, jd, ctx, m).len == 0
+    let ir = """
+define i32 @answer() {
+entry:
+  ret i32 42
+}
+"""
+    check addModuleToDylib(jit, jd, ir).len == 0
 
   test "jitMangle returns non-empty string":
     discard LLVMInitializeNativeTarget()
@@ -119,23 +117,21 @@ suite "shim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
-    # NOTE: No defer to dispose of JIT because ctx and m are transferred to it
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check err.len == 0
 
     let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
     check jdErr.len == 0
 
-    let ctx = LLVMContextCreate()
-    let m = LLVMModuleCreateWithNameInContext("m", ctx)
-    let i32t = LLVMInt32TypeInContext(ctx)
-    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
-    let fn = LLVMAddFunction(m, "answer", fnTy)
-    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
-    let b = LLVMCreateBuilderInContext(ctx)
-    LLVMPositionBuilderAtEnd(b, bb)
-    discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
-
-    check addModuleToDylib(jit, jd, ctx, m).len == 0
+    let ir = """
+define i32 @answer() {
+entry:
+  ret i32 42
+}
+"""
+    check addModuleToDylib(jit, jd, ir).len == 0
 
     let mangled = jitMangle(jit, "answer")
     let (addrr, lookupErr) = jitLookupLinkerMangled(jit, jd, mangled)
@@ -164,23 +160,21 @@ suite "shim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
-    # NOTE: No defer to dispose of JIT because ctx and m are transferred to it
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check err.len == 0
 
     let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
     check jdErr.len == 0
 
-    let ctx = LLVMContextCreate()
-    let m = LLVMModuleCreateWithNameInContext("m", ctx)
-    let i32t = LLVMInt32TypeInContext(ctx)
-    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
-    let fn = LLVMAddFunction(m, "answer", fnTy)
-    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
-    let b = LLVMCreateBuilderInContext(ctx)
-    LLVMPositionBuilderAtEnd(b, bb)
-    discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
-
-    check addModuleToDylib(jit, jd, ctx, m).len == 0
+    let ir = """
+define i32 @answer() {
+entry:
+  ret i32 42
+}
+"""
+    check addModuleToDylib(jit, jd, ir).len == 0
 
     let (addrr, lookupErr) = jitLookupInDylib(jit, jd, "answer")
     check lookupErr.len == 0

@@ -17,11 +17,18 @@ proc targetDataFromJit*(jit: LLVMOrcLLJITRef): LLVMTargetDataRef =
   doAssert not s.isNil, "targetDataFromJit: nil DataLayout"
   LLVMCreateTargetData(s)
 
-proc addModuleToDylib*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; ctx: LLVMContextRef; m: LLVMModuleRef): string =
-  ## Transfers ownership of m to the JIT, tracked by jd.
+proc addModuleToDylib*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; ir: string): string =
+  ## Parses LLVM IR and adds it to the specified JITDylib.
+  ## Ownership of the parsed module and context is fully handled by LLVM.
+  let ctx = LLVMContextCreate()
+  let (m, err) = parseIR(ctx, ir)
+  if err.len > 0:
+    LLVMContextDispose(ctx)
+    return err
+  
   let tsc = LLVMOrcCreateNewThreadSafeContextFromLLVMContext(ctx)
   let tsm = LLVMOrcCreateNewThreadSafeModule(m, tsc)
-  LLVMOrcDisposeThreadSafeContext(tsc)
+  
   let errRef = LLVMOrcLLJITAddLLVMIRModule(jit, jd, tsm)
   if not errRef.isNil:
     let msg = LLVMGetErrorMessage(errRef)
