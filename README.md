@@ -45,6 +45,18 @@ brew install llvm@23
 
 Windows: use the official LLVM 23.1.x build from llvm.org. It ships `LLVM-C.dll`.
 
+## Static linking
+
+Dynamic loading remains the default. To link LLVM's static archives instead, build with:
+
+```sh
+nim c -r -d:staticLlvm tests/tests.nim
+```
+
+Static mode uses `llvm-config --link-static --libs --system-libs` to pass LLVM and its platform dependencies to the linker. Ensure `llvm-config` is on `PATH` and belongs to the LLVM 23.1.x installation whose static archives you want to use.
+
+Arch Linux's packaged LLVM may omit core static archives. Build LLVM yourself with `-DLLVM_BUILD_STATIC=ON` and put that build's `llvm-config` on `PATH`. The regular dynamic build and `-d:LlvmLib=...` override are unchanged.
+
 ## Install
 
 ```sh
@@ -175,7 +187,7 @@ See the `examples/` directory for fully working scripts:
 ## Limitations
 
 - Not full LLVM-C coverage. Object loaders, most ORC layers beyond LLJIT, and some advanced analysis APIs are not bound.
-- Only dynamic linking via `dynlib`. Static linking is not wired up.
+- Dynamic loading via `dynlib` is the default; opt-in static linking is available with `-d:staticLlvm`.
 - The AOT emit tests write to `/tmp` and assume a Unix-like system.
 - `LLJIT::getTargetMachine()` is not exposed: it does not exist in LLVM 23's public `LLJIT` API. Use `targetDataFromJit` (DataLayout-based) instead.  
 
