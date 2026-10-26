@@ -45,3 +45,29 @@ proc jitCreateJITDylib*(jit: LLVMOrcLLJITRef; name: string): tuple[jd: LLVMOrcJI
     jitFreeErrorMessage(errMsg)
   else:
     result = (jd, "")
+
+proc jitMangle*(jit: LLVMOrcLLJITRef; name: cstring): cstring
+  {.importc, cdecl, header: "shim.h".}
+
+proc jitLookupLinkerMangled*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; name: cstring; outAddr: ptr uint64): cstring
+  {.importc, cdecl, header: "shim.h".}
+
+proc jitGetJITDylibByName*(jit: LLVMOrcLLJITRef; name: cstring): LLVMOrcJITDylibRef
+  {.importc, cdecl, header: "shim.h".}
+
+proc jitMangle*(jit: LLVMOrcLLJITRef; name: string): string =
+  let c = jitMangle(jit, name.cstring)
+  result = $c
+  jitFreeErrorMessage(c)
+
+proc jitLookupLinkerMangled*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; name: string): tuple[addrr: uint64, err: string] =
+  var addrr: uint64
+  let c = jitLookupLinkerMangled(jit, jd, name.cstring, addr addrr)
+  if c.isNil:
+    result = (addrr, "")
+  else:
+    result = (0'u64, $c)
+    jitFreeErrorMessage(c)
+
+proc jitGetJITDylibByName*(jit: LLVMOrcLLJITRef; name: string): LLVMOrcJITDylibRef =
+  jitGetJITDylibByName(jit, name.cstring)

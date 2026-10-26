@@ -58,3 +58,48 @@ suite "shim":
 
     check addModuleToDylib(jit, jd, ctx, m).len == 0
     # ctx ownership transferred; do not dispose
+
+  test "jitMangle returns non-empty string":
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, err) = createLLJIT()
+    check err.len == 0
+    let mangled = jitMangle(jit, "my_func")
+    check mangled.len > 0
+
+  test "jitGetJITDylibByName returns existing dylib":
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, err) = createLLJIT()
+    check err.len == 0
+    let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
+    check jdErr.len == 0
+    let found = jitGetJITDylibByName(jit, "custom")
+    check not found.isNil
+    check found == jd
+
+  test "jitLookupLinkerMangled finds symbol after addModule":
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, err) = createLLJIT()
+    check err.len == 0
+    let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
+    check jdErr.len == 0
+
+    let ctx = LLVMContextCreate()
+    let m = LLVMModuleCreateWithNameInContext("m", ctx)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "answer", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
+
+    check addModuleToDylib(jit, jd, ctx, m).len == 0
+
+    let mangled = jitMangle(jit, "answer")
+    let (addrr, lookupErr) = jitLookupLinkerMangled(jit, jd, mangled)
+    check lookupErr.len == 0
+    check addrr != 0

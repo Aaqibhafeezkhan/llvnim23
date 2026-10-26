@@ -49,3 +49,34 @@ jitCreateJITDylib(LLVMOrcLLJITRef J, const char *Name, char **ErrOut) {
   }
   return reinterpret_cast<LLVMOrcJITDylibRef>(&*Result);
 }
+
+extern "C" const char*
+jitMangle(LLVMOrcLLJITRef J, const char *Name) {
+  auto *JIT = reinterpret_cast<llvm::orc::LLJIT*>(J);
+  auto S = JIT->mangle(Name);
+  char *Buf = new char[S.size() + 1];
+  std::strcpy(Buf, S.c_str());
+  return Buf;
+}
+
+extern "C" const char*
+jitLookupLinkerMangled(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD, const char *Name, uint64_t *OutAddr) {
+  auto *JIT = reinterpret_cast<llvm::orc::LLJIT*>(J);
+  auto *Dylib = reinterpret_cast<llvm::orc::JITDylib*>(JD);
+  auto Result = JIT->lookupLinkerMangled(*Dylib, Name);
+  if (!Result) {
+    std::string Msg = llvm::toString(Result.takeError());
+    char *Buf = new char[Msg.size() + 1];
+    std::strcpy(Buf, Msg.c_str());
+    return Buf;
+  }
+  *OutAddr = Result->getValue();
+  return nullptr;
+}
+
+extern "C" LLVMOrcJITDylibRef
+jitGetJITDylibByName(LLVMOrcLLJITRef J, const char *Name) {
+  auto *JIT = reinterpret_cast<llvm::orc::LLJIT*>(J);
+  auto *Dylib = JIT->getJITDylibByName(Name);
+  return reinterpret_cast<LLVMOrcJITDylibRef>(Dylib);
+}

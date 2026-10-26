@@ -13,6 +13,9 @@ const char* jitLinkStaticLibraryInto(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD, c
 void jitFreeErrorMessage(const char *Msg);
 const char* jitLoadPlatformDynamicLibrary(LLVMOrcLLJITRef J, const char *Path);
 LLVMOrcJITDylibRef jitCreateJITDylib(LLVMOrcLLJITRef J, const char *Name, char **ErrOut);
+const char* jitMangle(LLVMOrcLLJITRef J, const char *Name);
+const char* jitLookupLinkerMangled(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD, const char *Name, uint64_t *OutAddr);
+LLVMOrcJITDylibRef jitGetJITDylibByName(LLVMOrcLLJITRef J, const char *Name);
 
 #ifdef __cplusplus
 }
