@@ -35,3 +35,27 @@ suite "shim":
     let (jd, msg) = jitCreateJITDylib(jit, "plugins")
     check msg.len == 0
     check not jd.isNil
+
+  test "jitAddIRModuleToDylib adds to custom dylib":
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, err) = createLLJIT()
+    check err.len == 0
+    let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
+    check jdErr.len == 0
+
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("m", ctx)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "answer", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
+
+    let (ok, msg) = jitAddIRModuleToDylibSafe(jit, jd, m)
+    check ok
+    check msg.len == 0
