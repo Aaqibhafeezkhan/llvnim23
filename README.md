@@ -158,6 +158,7 @@ See the `examples/` directory for fully working scripts:
 - A context is not thread-safe. Use one context per thread.
 - `LLVMInitializeNative*` supports amd64, i386, arm64. Other CPUs fail at compile time.
 - `LLVMBuildUnwind` was removed from the C API in LLVM 23 and is not bound.
+- `LLVMOrcCreateNewThreadSafeContextFromLLVMContext` takes ownership of the `LLVMContextRef`. Do not call `LLVMContextDispose` on it afterwards.
 
 ## Limitations
 

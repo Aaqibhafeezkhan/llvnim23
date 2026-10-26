@@ -3347,3 +3347,10 @@ entry:
     check "catchpad" in $ir
     check "catchret" in $ir
     LLVMDisposeMessage(ir)
+
+  test "OrcCreateNewThreadSafeContextFromLLVMContext takes ownership":
+    let ctx = LLVMContextCreate()
+    let tsc = LLVMOrcCreateNewThreadSafeContextFromLLVMContext(ctx)
+    check not tsc.isNil
+    LLVMOrcDisposeThreadSafeContext(tsc)
+    # ctx is owned by tsc now; do NOT call LLVMContextDispose(ctx)

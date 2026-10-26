@@ -1183,3 +1183,7 @@ proc LLVMABIAlignmentOfType*(TD: LLVMTargetDataRef; Ty: LLVMTypeRef): cuint {.ll
 proc LLVMOffsetOfElement*(TD: LLVMTargetDataRef; StructTy: LLVMTypeRef; Element: cuint): uint64 {.llvmImport.}
 
 proc LLVMOrcLLJITGetDataLayoutStr*(J: LLVMOrcLLJITRef): cstring {.llvmImport.}
+proc LLVMOrcCreateNewThreadSafeContextFromLLVMContext*(Ctx: LLVMContextRef): LLVMOrcThreadSafeContextRef {.llvmImport.}
+  ## Takes ownership of Ctx. After this call, do NOT dispose Ctx with
+  ## LLVMContextDispose: the ThreadSafeContext owns it.
+

@@ -3,6 +3,7 @@
 import unittest
 import ../src/llvnim
 import ../src/llvnim/shim
+import ../src/llvnim/dx
 
 suite "shim":
 
@@ -36,7 +37,7 @@ suite "shim":
     check msg.len == 0
     check not jd.isNil
 
-  test "jitAddIRModuleToDylib adds to custom dylib":
+  test "addModuleToDylib adds module to custom dylib":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
@@ -45,7 +46,6 @@ suite "shim":
     check jdErr.len == 0
 
     let ctx = LLVMContextCreate()
-    defer: LLVMContextDispose(ctx)
     let m = LLVMModuleCreateWithNameInContext("m", ctx)
     let i32t = LLVMInt32TypeInContext(ctx)
     let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
@@ -56,6 +56,5 @@ suite "shim":
     LLVMPositionBuilderAtEnd(b, bb)
     discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
 
-    let (ok, msg) = jitAddIRModuleToDylibSafe(jit, jd, m)
-    check ok
-    check msg.len == 0
+    check addModuleToDylib(jit, jd, ctx, m).len == 0
+    # ctx ownership transferred; do not dispose

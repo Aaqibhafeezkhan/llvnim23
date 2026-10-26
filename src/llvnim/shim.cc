@@ -2,11 +2,10 @@
 
 #include "shim.h"
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
-#include "llvm/IR/Module.h"
 #include "llvm/Support/Error.h"
-#include "llvm-c/Core.h"
 #include <string>
 #include <cstring>
+
 extern "C" const char*
 jitLinkStaticLibraryInto(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD, const char *Path) {
   auto *JIT = reinterpret_cast<llvm::orc::LLJIT*>(J);
@@ -49,21 +48,4 @@ jitCreateJITDylib(LLVMOrcLLJITRef J, const char *Name, char **ErrOut) {
     return nullptr;
   }
   return reinterpret_cast<LLVMOrcJITDylibRef>(&*Result);
-}
-
-extern "C" const char*
-jitAddIRModuleToDylib(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD, LLVMModuleRef M) {
-  auto *JIT = reinterpret_cast<llvm::orc::LLJIT*>(J);
-  auto *Dylib = reinterpret_cast<llvm::orc::JITDylib*>(JD);
-  auto *Mod = reinterpret_cast<llvm::Module*>(M);
-
-  auto TSC = llvm::orc::ThreadSafeContext(llvm::wrap(&Mod->getContext()));
-  auto TSM = llvm::orc::ThreadSafeModule(std::unique_ptr<llvm::Module>(Mod), std::move(TSC));
-
-  auto Err = JIT->addIRModule(*Dylib, std::move(TSM));
-  if (!Err) return nullptr;
-  std::string Msg = llvm::toString(std::move(Err));
-  char *Buf = new char[Msg.size() + 1];
-  std::strcpy(Buf, Msg.c_str());
-  return Buf;
 }

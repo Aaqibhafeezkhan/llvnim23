@@ -8,3 +8,14 @@ proc targetDataFromJit*(jit: LLVMOrcLLJITRef): LLVMTargetDataRef =
   let s = LLVMOrcLLJITGetDataLayoutStr(jit)
   doAssert not s.isNil, "targetDataFromJit: nil DataLayout"
   LLVMCreateTargetData(s)
+
+proc addModuleToDylib*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; ctx: LLVMContextRef; m: LLVMModuleRef): string =
+  ## Transfers ownership of m to the JIT, tracked by jd.
+  let tsc = LLVMOrcCreateNewThreadSafeContextFromLLVMContext(ctx)
+  let tsm = LLVMOrcCreateNewThreadSafeModule(m, tsc)
+  LLVMOrcDisposeThreadSafeContext(tsc)
+  let errRef = LLVMOrcLLJITAddLLVMIRModule(jit, jd, tsm)
+  if not errRef.isNil:
+    let msg = LLVMGetErrorMessage(errRef)
+    result = $msg
+    LLVMDisposeErrorMessage(msg)

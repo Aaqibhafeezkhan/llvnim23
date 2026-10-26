@@ -13,7 +13,6 @@ const char* jitLinkStaticLibraryInto(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD, c
 void jitFreeErrorMessage(const char *Msg);
 const char* jitLoadPlatformDynamicLibrary(LLVMOrcLLJITRef J, const char *Path);
 LLVMOrcJITDylibRef jitCreateJITDylib(LLVMOrcLLJITRef J, const char *Name, char **ErrOut);
-const char* jitAddIRModuleToDylib(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD, LLVMModuleRef M);
 
 #ifdef __cplusplus
 }

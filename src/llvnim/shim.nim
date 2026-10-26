@@ -45,14 +45,3 @@ proc jitCreateJITDylib*(jit: LLVMOrcLLJITRef; name: string): tuple[jd: LLVMOrcJI
     jitFreeErrorMessage(errMsg)
   else:
     result = (jd, "")
-
-proc jitAddIRModuleToDylib*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; m: LLVMModuleRef): cstring
-  {.importc, cdecl, header: "shim.h".}
-
-proc jitAddIRModuleToDylibSafe*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; m: LLVMModuleRef): tuple[ok: bool, err: string] =
-  let c = jitAddIRModuleToDylib(jit, jd, m)
-  if c.isNil:
-    result = (true, "")
-  else:
-    result = (false, $c)
-    jitFreeErrorMessage(c)
