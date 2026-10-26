@@ -8,19 +8,26 @@
 import std/hashes
 import std/macros
 
-when defined(windows):
-  # Official LLVM 23.x Windows builds ship LLVM-C.dll.
-  const LlvmLib {.strdefine.} = "LLVM-C.dll"
-elif defined(macosx):
-  # Homebrew: /opt/homebrew/opt/llvm/lib/libLLVM.dylib (or libLLVM-23.dylib).
-  # Locate via `llvm-config --libdir`. Override with -d:LlvmLib=...
-  const LlvmLib {.strdefine.} = "libLLVM.dylib"
+when defined(staticLlvm):
+  # Resolve the static archives and their platform dependencies at compile time.
+  # llvm-config must point to the matching LLVM 23.1.x installation.
+  const LlvmStaticLinkArgs = staticExec("llvm-config --link-static --libs --system-libs")
+  {.passL: LlvmStaticLinkArgs.}
+  {.pragma: llvmImport, cdecl, importc.}
 else:
-  # Fedora/Ubuntu/Debian: libLLVM-23.so.1; Arch: libLLVM.so;
-  # upstream tarball: libLLVM.so.23.1. Override with -d:LlvmLib=...
-  const LlvmLib {.strdefine.} = "libLLVM.so.23.1"
+  when defined(windows):
+    # Official LLVM 23.x Windows builds ship LLVM-C.dll.
+    const LlvmLib {.strdefine.} = "LLVM-C.dll"
+  elif defined(macosx):
+    # Homebrew: /opt/homebrew/opt/llvm/lib/libLLVM.dylib (or libLLVM-23.dylib).
+    # Locate via `llvm-config --libdir`. Override with -d:LlvmLib=...
+    const LlvmLib {.strdefine.} = "libLLVM.dylib"
+  else:
+    # Fedora/Ubuntu/Debian: libLLVM-23.so.1; Arch: libLLVM.so;
+    # upstream tarball: libLLVM.so.23.1. Override with -d:LlvmLib=...
+    const LlvmLib {.strdefine.} = "libLLVM.so.23.1"
 
-{.pragma: llvmImport, cdecl, importc, dynlib: LlvmLib.}
+  {.pragma: llvmImport, cdecl, importc, dynlib: LlvmLib.}
 
 proc LLVMGetVersion*(Major, Minor, Patch: var cuint) {.llvmImport.}
 
