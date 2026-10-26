@@ -9,15 +9,6 @@ import ../src/llvnim/dx
 suite "shim":
 
   test "jitLinkStaticLibraryInto succeeds":
-    discard LLVMInitializeNativeTarget()
-    discard LLVMInitializeNativeAsmPrinter()
-    let (jit, err) = createLLJIT()
-    defer:
-      let e = LLVMOrcDisposeLLJIT(jit)
-      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
-    check err.len == 0
-
-    let jd = LLVMOrcLLJITGetMainJITDylib(jit)
     var libPath = ""
     let (outp, rc) = gorgeEx("llvm-config --libdir")
     if rc == 0:
@@ -36,6 +27,15 @@ suite "shim":
       echo "Skipping jitLinkStaticLibraryInto: no static LLVM libs found"
       skip()
     else:
+      discard LLVMInitializeNativeTarget()
+      discard LLVMInitializeNativeAsmPrinter()
+      let (jit, err) = createLLJIT()
+      defer:
+        let e = LLVMOrcDisposeLLJIT(jit)
+        if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
+      check err.len == 0
+
+      let jd = LLVMOrcLLJITGetMainJITDylib(jit)
       let (ok, msg) = jitLinkStaticLibraryInto(jit, jd, libPath)
       check ok
       check msg.len == 0
