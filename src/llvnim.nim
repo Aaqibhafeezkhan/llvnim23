@@ -440,6 +440,7 @@ definePointerOps(LLVMOrcThreadSafeContextRef)
 definePointerOps(LLVMOrcThreadSafeModuleRef)
 definePointerOps(LLVMOrcLLJITRef)
 definePointerOps(LLVMErrorRef)
+definePointerOps(LLVMOrcJITDylibRef)
 
 proc LLVMOrcCreateNewThreadSafeContext*(): LLVMOrcThreadSafeContextRef {.llvmImport.}
 proc LLVMOrcDisposeThreadSafeContext*(TSCtx: LLVMOrcThreadSafeContextRef) {.llvmImport.}

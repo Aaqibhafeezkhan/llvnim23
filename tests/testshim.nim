@@ -26,3 +26,12 @@ suite "shim":
     let (ok, msg) = jitLoadPlatformDynamicLibrary(jit, "libc.so.6")
     check ok
     check msg.len == 0
+
+  test "jitCreateJITDylib creates named dylib":
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, err) = createLLJIT()
+    check err.len == 0
+    let (jd, msg) = jitCreateJITDylib(jit, "plugins")
+    check msg.len == 0
+    check not jd.isNil

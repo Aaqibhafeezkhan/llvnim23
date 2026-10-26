@@ -35,3 +35,17 @@ jitLoadPlatformDynamicLibrary(LLVMOrcLLJITRef J, const char *Path) {
   }
   return nullptr;
 }
+
+extern "C" LLVMOrcJITDylibRef
+jitCreateJITDylib(LLVMOrcLLJITRef J, const char *Name, char **ErrOut) {
+  auto *JIT = reinterpret_cast<llvm::orc::LLJIT*>(J);
+  auto Result = JIT->createJITDylib(Name);
+  if (!Result) {
+    std::string Msg = llvm::toString(Result.takeError());
+    char *Buf = new char[Msg.size() + 1];
+    std::strcpy(Buf, Msg.c_str());
+    *ErrOut = Buf;
+    return nullptr;
+  }
+  return reinterpret_cast<LLVMOrcJITDylibRef>(&*Result);
+}

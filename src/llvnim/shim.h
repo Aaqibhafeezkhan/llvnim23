@@ -12,6 +12,7 @@ extern "C" {
 const char* jitLinkStaticLibraryInto(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD, const char *Path);
 void jitFreeErrorMessage(const char *Msg);
 const char* jitLoadPlatformDynamicLibrary(LLVMOrcLLJITRef J, const char *Path);
+LLVMOrcJITDylibRef jitCreateJITDylib(LLVMOrcLLJITRef J, const char *Name, char **ErrOut);
 
 #ifdef __cplusplus
 }

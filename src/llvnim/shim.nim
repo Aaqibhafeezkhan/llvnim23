@@ -33,3 +33,15 @@ proc jitLoadPlatformDynamicLibrary*(jit: LLVMOrcLLJITRef; path: string): tuple[o
   else:
     result = (false, $c)
     jitFreeErrorMessage(c)
+
+proc jitCreateJITDylib*(jit: LLVMOrcLLJITRef; name: cstring; errOut: ptr cstring): LLVMOrcJITDylibRef
+  {.importc, cdecl, header: "shim.h".}
+
+proc jitCreateJITDylib*(jit: LLVMOrcLLJITRef; name: string): tuple[jd: LLVMOrcJITDylibRef, err: string] =
+  var errMsg: cstring
+  let jd = jitCreateJITDylib(jit, name.cstring, addr errMsg)
+  if not errMsg.isNil:
+    result = (LLVMOrcJITDylibRef(nil), $errMsg)
+    jitFreeErrorMessage(errMsg)
+  else:
+    result = (jd, "")
