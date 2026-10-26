@@ -266,3 +266,16 @@ suite "llvnim dx":
     check "@my_str = private unnamed_addr constant" in $ir
     check "c\"world\\00\"" in $ir
     LLVMDisposeMessage(ir)
+
+  test "LLJIT: TargetData from DataLayout":
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, err) = createLLJIT()
+    check err.len == 0
+    let td = targetDataFromJit(jit)
+    check not td.isNil
+    defer: LLVMDisposeTargetData(td)
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    check LLVMStoreSizeOfType(td, i32t) == 4

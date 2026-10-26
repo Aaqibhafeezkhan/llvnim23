@@ -1180,3 +1180,5 @@ proc LLVMStoreSizeOfType*(TD: LLVMTargetDataRef; Ty: LLVMTypeRef): uint64 {.llvm
 proc LLVMABISizeOfType*(TD: LLVMTargetDataRef; Ty: LLVMTypeRef): uint64 {.llvmImport.}
 proc LLVMABIAlignmentOfType*(TD: LLVMTargetDataRef; Ty: LLVMTypeRef): cuint {.llvmImport.}
 proc LLVMOffsetOfElement*(TD: LLVMTargetDataRef; StructTy: LLVMTypeRef; Element: cuint): uint64 {.llvmImport.}
+
+proc LLVMOrcLLJITGetDataLayoutStr*(J: LLVMOrcLLJITRef): cstring {.llvmImport.}

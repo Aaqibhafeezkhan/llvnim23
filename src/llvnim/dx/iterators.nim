@@ -1,3 +1,5 @@
+# Copyright (c) 2026 https://github.com/xlebore3o4ka
+
 import ../../llvnim
 
 proc getName*(val: LLVMValueRef): string =
