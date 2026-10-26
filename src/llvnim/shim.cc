@@ -22,3 +22,16 @@ extern "C" void
 jitFreeErrorMessage(const char *Msg) {
   delete[] Msg;
 }
+
+extern "C" const char*
+jitLoadPlatformDynamicLibrary(LLVMOrcLLJITRef J, const char *Path) {
+  auto *JIT = reinterpret_cast<llvm::orc::LLJIT*>(J);
+  auto Result = JIT->loadPlatformDynamicLibrary(Path);
+  if (!Result) {
+    std::string Msg = llvm::toString(Result.takeError());
+    char *Buf = new char[Msg.size() + 1];
+    std::strcpy(Buf, Msg.c_str());
+    return Buf;
+  }
+  return nullptr;
+}

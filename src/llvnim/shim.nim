@@ -22,3 +22,14 @@ proc jitLinkStaticLibraryInto*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; pat
   else:
     result = (false, $c)
     jitFreeErrorMessage(c)
+
+proc jitLoadPlatformDynamicLibrary*(jit: LLVMOrcLLJITRef; path: cstring): cstring
+  {.importc, cdecl, header: "shim.h".}
+
+proc jitLoadPlatformDynamicLibrary*(jit: LLVMOrcLLJITRef; path: string): tuple[ok: bool, err: string] =
+  let c = jitLoadPlatformDynamicLibrary(jit, path.cstring)
+  if c.isNil:
+    result = (true, "")
+  else:
+    result = (false, $c)
+    jitFreeErrorMessage(c)
