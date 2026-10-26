@@ -9,9 +9,6 @@ import ../src/llvnim/dx
 suite "shim":
 
   test "jitLinkStaticLibraryInto succeeds":
-    discard LLVMInitializeNativeTarget()
-    discard LLVMInitializeNativeAsmPrinter()
-
     var libPath = ""
     let (outp, rc) = gorgeEx("llvm-config --libdir")
     if rc == 0:
@@ -28,12 +25,16 @@ suite "shim":
 
     if libPath.len == 0:
       echo "Skipping jitLinkStaticLibraryInto: no static LLVM libs found"
+      skip()
     else:
+      discard LLVMInitializeNativeTarget()
+      discard LLVMInitializeNativeAsmPrinter()
       let (jit, err) = createLLJIT()
       defer:
         let e = LLVMOrcDisposeLLJIT(jit)
         if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
       check err.len == 0
+
       let jd = LLVMOrcLLJITGetMainJITDylib(jit)
       let (ok, msg) = jitLinkStaticLibraryInto(jit, jd, libPath)
       check ok
@@ -178,10 +179,3 @@ entry:
     let (addrr, lookupErr) = jitLookupInDylib(jit, jd, "answer")
     check lookupErr.len == 0
     check addrr != 0
-
-when isMainModule:
-  # Force immediate exit to avoid SIGSEGV during Nim's GC cleanup.
-  # ORC JIT spawns background threads; if the process exits normally,
-  # Nim's destructors may race with those threads.
-  # I’m not very proud of this.
-  quit(0)
