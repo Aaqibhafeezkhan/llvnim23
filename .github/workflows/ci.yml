@@ -30,8 +30,8 @@ jobs:
           nim-version: 'stable'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check llvm-config
-        run: llvm-config --version
+      - name: Symlink llvm-config
+        run: sudo ln -sf /usr/bin/llvm-config-23 /usr/local/bin/llvm-config
 
       - name: Run core tests
         run: |
