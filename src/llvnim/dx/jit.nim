@@ -35,3 +35,13 @@ proc addObjectFileToDylib*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; buf: LL
     let msg = LLVMGetErrorMessage(errRef)
     result = $msg
     LLVMDisposeErrorMessage(msg)
+
+proc enableDebugSupport*(jit: LLVMOrcLLJITRef): tuple[ok: bool, err: string] =
+  ## Installs the debug plugin so JIT'd objects are registered with GDB.
+  let errRef = LLVMOrcLLJITEnableDebugSupport(jit)
+  if errRef.isNil:
+    result = (true, "")
+  else:
+    let msg = LLVMGetErrorMessage(errRef)
+    result = (false, $msg)
+    LLVMDisposeErrorMessage(msg)

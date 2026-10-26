@@ -3397,3 +3397,12 @@ entry:
 
     check addObjectFileToDylib(jit, jd, buf).len == 0
     removeFile(objPath)
+
+  test "LLJIT: EnableDebugSupport succeeds":
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, err) = createLLJIT()
+    check err.len == 0
+    let (ok, msg) = enableDebugSupport(jit)
+    check ok
+    check msg.len == 0

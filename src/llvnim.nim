@@ -1188,3 +1188,4 @@ proc LLVMOrcCreateNewThreadSafeContextFromLLVMContext*(Ctx: LLVMContextRef): LLV
   ## LLVMContextDispose: the ThreadSafeContext owns it.
 
 proc LLVMOrcLLJITAddObjectFile*(J: LLVMOrcLLJITRef; JD: LLVMOrcJITDylibRef; ObjBuffer: LLVMMemoryBufferRef): LLVMErrorRef {.llvmImport.}
+proc LLVMOrcLLJITEnableDebugSupport*(J: LLVMOrcLLJITRef): LLVMErrorRef {.llvmImport.}
