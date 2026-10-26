@@ -52,3 +52,8 @@ jobs:
       - name: Run shim tests
         run: |
           nim c -r --lineTrace:on --stackTrace:on -o:tests/testshim tests/testshim.nim
+
+      - name: Run nimoscope tests
+        working-directory: examples/nimoscope
+        run: |
+          nim c -r --lineTrace:on --stackTrace:on -o:tests/testsnimoscope tests/testsnimoscope.nim
