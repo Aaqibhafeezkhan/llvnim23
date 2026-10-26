@@ -32,10 +32,13 @@ suite "shim":
           libPath = lib
           break
 
-    check libPath.len > 0
-    let (ok, msg) = jitLinkStaticLibraryInto(jit, jd, libPath)
-    check ok
-    check msg.len == 0
+    if libPath.len == 0:
+      echo "Skipping jitLinkStaticLibraryInto: no static LLVM libs found"
+      skip()
+    else:
+      let (ok, msg) = jitLinkStaticLibraryInto(jit, jd, libPath)
+      check ok
+      check msg.len == 0
 
   test "jitLoadPlatformDynamicLibrary loads libc":
     discard LLVMInitializeNativeTarget()
