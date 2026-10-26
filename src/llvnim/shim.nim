@@ -14,12 +14,18 @@ proc getLlvmCflags(): string =
       
   return ""
 
-{.passC: getLlvmCflags().}
+proc getLlvmLflags(): string =
+  let (outp, rc) = gorgeEx("llvm-config --libs --system-libs")
+  if rc == 0 and outp.strip().len > 0:
+    return outp.strip().splitWhitespace().join(" ")
+  
+  return "-lLLVM-23 -lstdc++ -lm -ldl"
+
 {.compile: currentSourcePath().parentDir / "shim.cc".}
-{.passC: "-std=c++17".}
-{.passL: "-lstdc++".}
 {.passC: "-I" & currentSourcePath().parentDir.}
-{.compile: currentSourcePath().parentDir / "shim.cc".}
+{.passC: getLlvmCflags().}
+{.passC: "-std=c++17".}
+{.passL: getLlvmLflags().}
 
 proc jitLinkStaticLibraryInto*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; path: cstring): cstring
   {.importc, cdecl, header: "shim.h".}
