@@ -18,6 +18,8 @@ proc getLlvmCflags(): string =
 {.compile: currentSourcePath().parentDir / "shim.cc".}
 {.passC: "-std=c++17".}
 {.passL: "-lstdc++".}
+{.passC: "-I" & currentSourcePath().parentDir.}
+{.compile: currentSourcePath().parentDir / "shim.cc".}
 
 proc jitLinkStaticLibraryInto*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; path: cstring): cstring
   {.importc, cdecl, header: "shim.h".}
