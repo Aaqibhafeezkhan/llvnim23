@@ -492,6 +492,9 @@ suite "llvnim":
     check msg.len == 0
 
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
 
@@ -539,6 +542,9 @@ suite "llvnim":
     discard LLVMInitializeNativeAsmPrinter()
 
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
 
@@ -572,6 +578,9 @@ suite "llvnim":
     discard LLVMInitializeNativeAsmPrinter()
 
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
 
@@ -662,6 +671,9 @@ suite "llvnim":
     discard LLVMInitializeNativeAsmPrinter()
 
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
 
@@ -776,6 +788,9 @@ suite "llvnim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
     check addModule(jit, m).len == 0
@@ -948,6 +963,9 @@ suite "llvnim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
     check addModule(jit, m).len == 0
@@ -1107,6 +1125,9 @@ suite "llvnim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
     check addModule(jit, m).len == 0
@@ -1153,6 +1174,9 @@ suite "llvnim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
     check addModule(jit, m).len == 0
@@ -1230,6 +1254,9 @@ suite "llvnim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
     check addModule(jit, m).len == 0
@@ -1299,6 +1326,9 @@ suite "llvnim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
     check addModule(jit, m).len == 0
@@ -1517,6 +1547,9 @@ suite "llvnim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
     check addModule(jit, m).len == 0
@@ -1749,6 +1782,9 @@ suite "llvnim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
     check addModule(jit, m).len == 0
@@ -2322,6 +2358,9 @@ entry:
     discard LLVMInitializeNativeAsmPrinter()
     
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check not jit.isNil
     check jitErr.len == 0
 
@@ -2354,6 +2393,9 @@ entry:
     discard LLVMInitializeNativeAsmPrinter()
     
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check jitErr.len == 0
 
     let addErr = addModuleSafe(jit, jm)
@@ -2462,6 +2504,9 @@ entry:
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     doAssert jitErr.len == 0
     doAssert addModuleSafe(jit, m).len == 0
     doAssert m.raw.isNil
@@ -2612,7 +2657,6 @@ entry:
     defer: LLVMContextDispose(ctx)
 
     let dest = LLVMModuleCreateWithNameInContext("dest2", ctx)
-    defer: LLVMDisposeModule(dest)
     let src = LLVMModuleCreateWithNameInContext("src2", ctx)
     
     let i32t = LLVMInt32TypeInContext(ctx)
@@ -3391,6 +3435,9 @@ entry:
     check LLVMCreateMemoryBufferWithContentsOfFile(objPath.cstring, buf, bufErr) == LLVMFalse
 
     let (jit, jitErr) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check jitErr.len == 0
     let (jd, jdErr) = jitCreateJITDylib(jit, "objdylib")
     check jdErr.len == 0
@@ -3402,6 +3449,9 @@ entry:
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check err.len == 0
     let (ok, msg) = enableDebugSupport(jit)
     check ok

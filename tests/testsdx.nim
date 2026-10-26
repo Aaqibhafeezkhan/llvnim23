@@ -122,6 +122,9 @@ suite "llvnim dx":
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
     check jitErr.len == 0
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check addModule(jit, m).len == 0
 
     let (addrr, lookupErr) = lookup(jit, "max")
@@ -175,6 +178,9 @@ suite "llvnim dx":
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
     check jitErr.len == 0
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check addModule(jit, m).len == 0
 
     let (addrr, lookupErr) = lookup(jit, "select_val")
@@ -217,6 +223,9 @@ suite "llvnim dx":
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, jitErr) = createLLJIT()
     check jitErr.len == 0
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check addModule(jit, m).len == 0
 
     let (addrr, lookupErr) = lookup(jit, "test")
@@ -272,6 +281,9 @@ suite "llvnim dx":
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
     check err.len == 0
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     let td = targetDataFromJit(jit)
     check not td.isNil
     defer: LLVMDisposeTargetData(td)

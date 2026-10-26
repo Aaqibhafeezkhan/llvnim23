@@ -11,12 +11,13 @@ suite "shim":
   test "jitLinkStaticLibraryInto succeeds":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
-
     let (jit, err) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check err.len == 0
 
     let jd = LLVMOrcLLJITGetMainJITDylib(jit)
-    
     var libPath = ""
     let (outp, rc) = gorgeEx("llvm-config --libdir")
     if rc == 0:
@@ -25,7 +26,6 @@ suite "shim":
         if fileExists(dir / lib):
           libPath = dir / lib
           break
-    
     if libPath.len == 0:
       for lib in ["/usr/lib/libLLVMDemangle.a", "/usr/lib/libLLVMSupport.a"]:
         if fileExists(lib):
@@ -44,7 +44,11 @@ suite "shim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check err.len == 0
+
     let (ok, msg) = jitLoadPlatformDynamicLibrary(jit, "libc.so.6")
     check ok
     check msg.len == 0
@@ -53,7 +57,11 @@ suite "shim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check err.len == 0
+
     let (jd, msg) = jitCreateJITDylib(jit, "plugins")
     check msg.len == 0
     check not jd.isNil
@@ -62,7 +70,9 @@ suite "shim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
+    # NOTE: No defer to dispose of JIT because ctx and m are transferred to it
     check err.len == 0
+
     let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
     check jdErr.len == 0
 
@@ -73,18 +83,20 @@ suite "shim":
     let fn = LLVMAddFunction(m, "answer", fnTy)
     let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
     let b = LLVMCreateBuilderInContext(ctx)
-    defer: LLVMDisposeBuilder(b)
     LLVMPositionBuilderAtEnd(b, bb)
     discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
 
     check addModuleToDylib(jit, jd, ctx, m).len == 0
-    # ctx ownership transferred; do not dispose
 
   test "jitMangle returns non-empty string":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check err.len == 0
+
     let mangled = jitMangle(jit, "my_func")
     check mangled.len > 0
 
@@ -92,7 +104,11 @@ suite "shim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check err.len == 0
+
     let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
     check jdErr.len == 0
     let found = jitGetJITDylibByName(jit, "custom")
@@ -103,7 +119,9 @@ suite "shim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
+    # NOTE: No defer to dispose of JIT because ctx and m are transferred to it
     check err.len == 0
+
     let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
     check jdErr.len == 0
 
@@ -114,7 +132,6 @@ suite "shim":
     let fn = LLVMAddFunction(m, "answer", fnTy)
     let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
     let b = LLVMCreateBuilderInContext(ctx)
-    defer: LLVMDisposeBuilder(b)
     LLVMPositionBuilderAtEnd(b, bb)
     discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
 
@@ -129,7 +146,11 @@ suite "shim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
+    defer:
+      let e = LLVMOrcDisposeLLJIT(jit)
+      if not e.isNil: LLVMDisposeErrorMessage(LLVMGetErrorMessage(e))
     check err.len == 0
+
     let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
     check jdErr.len == 0
     let (ok1, msg1) = jitInitializeSafe(jit, jd)
@@ -143,7 +164,9 @@ suite "shim":
     discard LLVMInitializeNativeTarget()
     discard LLVMInitializeNativeAsmPrinter()
     let (jit, err) = createLLJIT()
+    # NOTE: No defer to dispose of JIT because ctx and m are transferred to it
     check err.len == 0
+
     let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
     check jdErr.len == 0
 
@@ -154,7 +177,6 @@ suite "shim":
     let fn = LLVMAddFunction(m, "answer", fnTy)
     let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
     let b = LLVMCreateBuilderInContext(ctx)
-    defer: LLVMDisposeBuilder(b)
     LLVMPositionBuilderAtEnd(b, bb)
     discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
 
