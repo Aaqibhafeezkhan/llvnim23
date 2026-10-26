@@ -117,3 +117,28 @@ suite "shim":
     let (ok2, msg2) = jitDeinitializeSafe(jit, jd)
     check ok2
     check msg2.len == 0
+
+  test "jitLookupInDylib finds symbol in custom dylib":
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, err) = createLLJIT()
+    check err.len == 0
+    let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
+    check jdErr.len == 0
+
+    let ctx = LLVMContextCreate()
+    let m = LLVMModuleCreateWithNameInContext("m", ctx)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "answer", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
+
+    check addModuleToDylib(jit, jd, ctx, m).len == 0
+
+    let (addrr, lookupErr) = jitLookupInDylib(jit, jd, "answer")
+    check lookupErr.len == 0
+    check addrr != 0

@@ -104,3 +104,18 @@ jitDeinitialize(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD) {
   std::strcpy(Buf, Msg.c_str());
   return Buf;
 }
+
+extern "C" const char*
+jitLookupInDylib(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD, const char *Name, uint64_t *OutAddr) {
+  auto *JIT = reinterpret_cast<llvm::orc::LLJIT*>(J);
+  auto *Dylib = reinterpret_cast<llvm::orc::JITDylib*>(JD);
+  auto Result = JIT->lookup(*Dylib, Name);
+  if (!Result) {
+    std::string Msg = llvm::toString(Result.takeError());
+    char *Buf = new char[Msg.size() + 1];
+    std::strcpy(Buf, Msg.c_str());
+    return Buf;
+  }
+  *OutAddr = Result->getValue();
+  return nullptr;
+}

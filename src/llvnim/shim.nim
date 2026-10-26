@@ -93,3 +93,15 @@ proc jitDeinitializeSafe*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef): tuple[o
   else:
     result = (false, $c)
     jitFreeErrorMessage(c)
+
+proc jitLookupInDylib*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; name: cstring; outAddr: ptr uint64): cstring
+  {.importc, cdecl, header: "shim.h".}
+
+proc jitLookupInDylib*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; name: string): tuple[addrr: uint64, err: string] =
+  var addrr: uint64
+  let c = jitLookupInDylib(jit, jd, name.cstring, addr addrr)
+  if c.isNil:
+    result = (addrr, "")
+  else:
+    result = (0'u64, $c)
+    jitFreeErrorMessage(c)
