@@ -112,6 +112,17 @@ echo cast[AddFn](addr)(20'i64, 22'i64)  # 42
 
 If you are writing a compiler and want to reduce boilerplate, check out the `llvnim/dx` module. It contains helpers to create functions, iterate over basic blocks, and manage SSA values more idiomatically. See [docs/dx.md](docs/dx.md) for examples.
 
+### C++ shim
+
+Some LLJIT operations are only available in the C++ API: linking static libraries, loading platform dynamic libraries, creating and looking up symbols in arbitrary JITDylibs, mangling, initialize/deinitialize. `src/llvnim/shim.cc` bridges them to C symbols callable from Nim.
+
+Requirements:
+
+- A C++ compiler (`g++` or `clang++`) on PATH.
+- LLVM C++ headers (`llvm/ExecutionEngine/Orc/LLJIT.h`).
+
+Import `llvnim/dx` to use the shim wrappers. They are not part of the core `llvnim` module because they need the C++ toolchain.
+
 ### Idiomatic API
 
 If you prefer a more Nim-friendly interface, import the `idiomatic` module. It automatically generates `camelCase` wrappers for all `LLVM*` functions (e.g., `contextCreate()` instead of `LLVMContextCreate()`) and provides RAII templates for safe memory management.
@@ -159,12 +170,14 @@ See the `examples/` directory for fully working scripts:
 - `LLVMInitializeNative*` supports amd64, i386, arm64. Other CPUs fail at compile time.
 - `LLVMBuildUnwind` was removed from the C API in LLVM 23 and is not bound.
 - `LLVMOrcCreateNewThreadSafeContextFromLLVMContext` takes ownership of the `LLVMContextRef`. Do not call `LLVMContextDispose` on it afterwards.
+- The C++ shim in `src/llvnim/shim.cc` requires a C++17 compiler. If you only use the core `llvnim` module, the shim is not compiled.
 
 ## Limitations
 
 - Not full LLVM-C coverage. Object loaders, most ORC layers beyond LLJIT, and some advanced analysis APIs are not bound.
 - Only dynamic linking via `dynlib`. Static linking is not wired up.
 - The AOT emit tests write to `/tmp` and assume a Unix-like system.
+- `LLJIT::getTargetMachine()` is not exposed: it does not exist in LLVM 23's public `LLJIT` API. Use `targetDataFromJit` (DataLayout-based) instead.  
 
 ## License
 

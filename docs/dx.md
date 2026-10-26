@@ -121,3 +121,47 @@ Creating null-terminated string globals is simplified:
 let strConst = stringConstant(ctx, "hello")
 let strGlobal = stringGlobal(m, ctx, "world", "my_str")
 ```
+
+## JIT Helpers
+
+`llvnim/dx` exposes LLJIT operations that are missing from the C API via a small C++ shim. Import `llvnim/dx` to use them.
+
+```nim
+import llvnim/dx
+
+let (jit, err) = createLLJIT()
+
+# Create a named JITDylib and add a module to it.
+let (jd, jdErr) = jitCreateJITDylib(jit, "plugins")
+check addModuleToDylib(jit, jd, ctx, m).len == 0
+
+# Look up a symbol in a specific dylib.
+let (addr, lookupErr) = jitLookupInDylib(jit, jd, "my_func")
+
+# Link a static library into a dylib.
+let (ok, linkErr) = jitLinkStaticLibraryInto(jit, jd, "/path/to/libfoo.a")
+
+# Load a platform dynamic library.
+let (ok, dlErr) = jitLoadPlatformDynamicLibrary(jit, "libc.so.6")
+
+# Mangle a symbol name.
+let mangled = jitMangle(jit, "my_func")
+
+# Run static constructors / destructors for a dylib.
+let (ok, initErr) = jitInitializeSafe(jit, jd)
+let (ok, deinitErr) = jitDeinitializeSafe(jit, jd)
+
+# Enable GDB debug support.
+let (ok, dbgErr) = enableDebugSupport(jit)
+```
+
+The shim requires a C++17 compiler on PATH and LLVM C++ headers. If you only need core IR building and LLJIT, import `llvnim` instead of `llvnim/dx`.
+
+### TargetData from LLJIT
+
+`LLJIT` does not expose its `TargetMachine`, but you can get `TargetData` from its DataLayout:
+
+```nim
+let td = targetDataFromJit(jit)
+defer: LLVMDisposeTargetData(td)
+```
