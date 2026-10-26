@@ -1,13 +1,23 @@
 # Copyright (c) 2026 https://github.com/xlebore3o4ka
 
 import ../llvnim
-import os
-import std/strutils
+import std/[strutils, os]
 
-{.passL: staticExec("llvm-config --libs --system-libs").splitWhitespace().join(" ").}
-{.passC: "-I" & currentSourcePath().parentDir.}
+proc getLlvmCflags(): string =
+  let (outp, rc) = gorgeEx("llvm-config --includedir")
+  if rc == 0 and outp.strip().len > 0:
+    return "-I" & outp.strip()
+  
+  for p in ["/usr/lib/llvm-23/include", "/usr/lib/llvm/include", "/usr/include"]:
+    if dirExists(p) and fileExists(p / "llvm-c" / "Core.h"):
+      return "-I" & p
+      
+  return ""
+
+{.passC: getLlvmCflags().}
 {.compile: currentSourcePath().parentDir / "shim.cc".}
 {.passC: "-std=c++17".}
+{.passL: "-lstdc++".}
 
 proc jitLinkStaticLibraryInto*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; path: cstring): cstring
   {.importc, cdecl, header: "shim.h".}

@@ -30,8 +30,16 @@ jobs:
           nim-version: 'stable'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Symlink llvm-config
-        run: sudo ln -sf /usr/bin/llvm-config-23 /usr/local/bin/llvm-config
+      - name: Setup LLVM PATH
+        run: |
+          sudo ln -sf /usr/bin/llvm-config-23 /usr/local/bin/llvm-config
+          echo "/usr/lib/llvm-23/bin" >> $GITHUB_PATH
+
+      - name: Debug LLVM Paths
+        run: |
+          llvm-config --includedir
+          ls -la /usr/include/llvm-c/Core.h || true
+          ls -la /usr/lib/llvm-23/include/llvm-c/Core.h || true
 
       - name: Run core tests
         run: |
