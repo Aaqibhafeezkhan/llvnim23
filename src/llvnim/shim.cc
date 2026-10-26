@@ -80,3 +80,27 @@ jitGetJITDylibByName(LLVMOrcLLJITRef J, const char *Name) {
   auto *Dylib = JIT->getJITDylibByName(Name);
   return reinterpret_cast<LLVMOrcJITDylibRef>(Dylib);
 }
+
+extern "C" const char*
+jitInitialize(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD) {
+  auto *JIT = reinterpret_cast<llvm::orc::LLJIT*>(J);
+  auto *Dylib = reinterpret_cast<llvm::orc::JITDylib*>(JD);
+  auto Err = JIT->initialize(*Dylib);
+  if (!Err) return nullptr;
+  std::string Msg = llvm::toString(std::move(Err));
+  char *Buf = new char[Msg.size() + 1];
+  std::strcpy(Buf, Msg.c_str());
+  return Buf;
+}
+
+extern "C" const char*
+jitDeinitialize(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD) {
+  auto *JIT = reinterpret_cast<llvm::orc::LLJIT*>(J);
+  auto *Dylib = reinterpret_cast<llvm::orc::JITDylib*>(JD);
+  auto Err = JIT->deinitialize(*Dylib);
+  if (!Err) return nullptr;
+  std::string Msg = llvm::toString(std::move(Err));
+  char *Buf = new char[Msg.size() + 1];
+  std::strcpy(Buf, Msg.c_str());
+  return Buf;
+}

@@ -16,6 +16,8 @@ LLVMOrcJITDylibRef jitCreateJITDylib(LLVMOrcLLJITRef J, const char *Name, char *
 const char* jitMangle(LLVMOrcLLJITRef J, const char *Name);
 const char* jitLookupLinkerMangled(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD, const char *Name, uint64_t *OutAddr);
 LLVMOrcJITDylibRef jitGetJITDylibByName(LLVMOrcLLJITRef J, const char *Name);
+const char* jitInitialize(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD);
+const char* jitDeinitialize(LLVMOrcLLJITRef J, LLVMOrcJITDylibRef JD);
 
 #ifdef __cplusplus
 }

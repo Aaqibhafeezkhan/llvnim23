@@ -3354,3 +3354,46 @@ entry:
     check not tsc.isNil
     LLVMOrcDisposeThreadSafeContext(tsc)
     # ctx is owned by tsc now; do NOT call LLVMContextDispose(ctx)
+
+  test "OrcLLJITAddObjectFile adds object to custom dylib":
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+
+    # Emit a .o first, then load as buffer.
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("obj", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "answer", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 42, LLVMFalse))
+
+    let tripleC = LLVMGetDefaultTargetTriple()
+    let triple = $tripleC
+    LLVMDisposeMessage(tripleC)
+    LLVMSetTarget(m, triple.cstring)
+    var target: LLVMTargetRef
+    var errMsg: cstring
+    discard LLVMGetTargetFromTriple(triple.cstring, target, errMsg)
+    let tm = LLVMCreateTargetMachine(target, triple.cstring, "generic", "", LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault)
+    defer: LLVMDisposeTargetMachine(tm)
+    let objPath = "/tmp/llvnim_dylib_test.o"
+    var emitErr: cstring
+    check LLVMTargetMachineEmitToFile(tm, m, objPath.cstring, LLVMObjectFile, emitErr) == LLVMFalse
+
+    var buf: LLVMMemoryBufferRef
+    var bufErr: cstring
+    check LLVMCreateMemoryBufferWithContentsOfFile(objPath.cstring, buf, bufErr) == LLVMFalse
+
+    let (jit, jitErr) = createLLJIT()
+    check jitErr.len == 0
+    let (jd, jdErr) = jitCreateJITDylib(jit, "objdylib")
+    check jdErr.len == 0
+
+    check addObjectFileToDylib(jit, jd, buf).len == 0
+    removeFile(objPath)

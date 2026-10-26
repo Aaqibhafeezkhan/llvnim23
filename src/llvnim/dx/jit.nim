@@ -1,6 +1,14 @@
 # Copyright (c) 2026 https://github.com/xlebore3o4ka
 
 import ../../llvnim
+import ../shim
+
+export shim.jitCreateJITDylib
+export shim.jitInitializeSafe
+export shim.jitDeinitializeSafe
+export shim.jitMangle
+export shim.jitLookupLinkerMangled
+export shim.jitGetJITDylibByName
 
 proc targetDataFromJit*(jit: LLVMOrcLLJITRef): LLVMTargetDataRef =
   ## Returns TargetData built from the LLJIT's DataLayout string.
@@ -15,6 +23,14 @@ proc addModuleToDylib*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; ctx: LLVMCo
   let tsm = LLVMOrcCreateNewThreadSafeModule(m, tsc)
   LLVMOrcDisposeThreadSafeContext(tsc)
   let errRef = LLVMOrcLLJITAddLLVMIRModule(jit, jd, tsm)
+  if not errRef.isNil:
+    let msg = LLVMGetErrorMessage(errRef)
+    result = $msg
+    LLVMDisposeErrorMessage(msg)
+
+proc addObjectFileToDylib*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; buf: LLVMMemoryBufferRef): string =
+  ## Transfers ownership of buf to the JIT. Do not dispose buf afterwards.
+  let errRef = LLVMOrcLLJITAddObjectFile(jit, jd, buf)
   if not errRef.isNil:
     let msg = LLVMGetErrorMessage(errRef)
     result = $msg

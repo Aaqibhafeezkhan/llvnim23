@@ -71,3 +71,25 @@ proc jitLookupLinkerMangled*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef; name:
 
 proc jitGetJITDylibByName*(jit: LLVMOrcLLJITRef; name: string): LLVMOrcJITDylibRef =
   jitGetJITDylibByName(jit, name.cstring)
+
+proc jitInitialize*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef): cstring
+  {.importc, cdecl, header: "shim.h".}
+
+proc jitDeinitialize*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef): cstring
+  {.importc, cdecl, header: "shim.h".}
+
+proc jitInitializeSafe*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef): tuple[ok: bool, err: string] =
+  let c = jitInitialize(jit, jd)
+  if c.isNil:
+    return (true, "")
+  else:
+    result = (false, $c)
+    jitFreeErrorMessage(c)
+
+proc jitDeinitializeSafe*(jit: LLVMOrcLLJITRef; jd: LLVMOrcJITDylibRef): tuple[ok: bool, err: string] =
+  let c = jitDeinitialize(jit, jd)
+  if c.isNil:
+    return (true, "")
+  else:
+    result = (false, $c)
+    jitFreeErrorMessage(c)

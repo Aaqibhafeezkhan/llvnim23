@@ -103,3 +103,17 @@ suite "shim":
     let (addrr, lookupErr) = jitLookupLinkerMangled(jit, jd, mangled)
     check lookupErr.len == 0
     check addrr != 0
+
+  test "jitInitialize and jitDeinitialize on empty dylib succeed":
+    discard LLVMInitializeNativeTarget()
+    discard LLVMInitializeNativeAsmPrinter()
+    let (jit, err) = createLLJIT()
+    check err.len == 0
+    let (jd, jdErr) = jitCreateJITDylib(jit, "custom")
+    check jdErr.len == 0
+    let (ok1, msg1) = jitInitializeSafe(jit, jd)
+    check ok1
+    check msg1.len == 0
+    let (ok2, msg2) = jitDeinitializeSafe(jit, jd)
+    check ok2
+    check msg2.len == 0

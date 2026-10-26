@@ -1187,3 +1187,4 @@ proc LLVMOrcCreateNewThreadSafeContextFromLLVMContext*(Ctx: LLVMContextRef): LLV
   ## Takes ownership of Ctx. After this call, do NOT dispose Ctx with
   ## LLVMContextDispose: the ThreadSafeContext owns it.
 
+proc LLVMOrcLLJITAddObjectFile*(J: LLVMOrcLLJITRef; JD: LLVMOrcJITDylibRef; ObjBuffer: LLVMMemoryBufferRef): LLVMErrorRef {.llvmImport.}
