@@ -178,3 +178,10 @@ entry:
     let (addrr, lookupErr) = jitLookupInDylib(jit, jd, "answer")
     check lookupErr.len == 0
     check addrr != 0
+
+when isMainModule:
+  # Force immediate exit to avoid SIGSEGV during Nim's GC cleanup.
+  # ORC JIT spawns background threads; if the process exits normally,
+  # Nim's destructors may race with those threads.
+  # I’m not very proud of this.
+  quit(0)
