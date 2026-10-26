@@ -1,6 +1,7 @@
 # Copyright (c) 2026 https://github.com/xlebore3o4ka
 
 import unittest
+import std/[os, strutils]
 import ../src/llvnim
 import ../src/llvnim/shim
 import ../src/llvnim/dx
@@ -15,7 +16,24 @@ suite "shim":
     check err.len == 0
 
     let jd = LLVMOrcLLJITGetMainJITDylib(jit)
-    let (ok, msg) = jitLinkStaticLibraryInto(jit, jd, "/usr/lib/libLLVMDemangle.a")
+    
+    var libPath = ""
+    let (outp, rc) = gorgeEx("llvm-config --libdir")
+    if rc == 0:
+      let dir = outp.strip()
+      for lib in ["libLLVMDemangle.a", "libLLVMSupport.a"]:
+        if fileExists(dir / lib):
+          libPath = dir / lib
+          break
+    
+    if libPath.len == 0:
+      for lib in ["/usr/lib/libLLVMDemangle.a", "/usr/lib/libLLVMSupport.a"]:
+        if fileExists(lib):
+          libPath = lib
+          break
+
+    check libPath.len > 0
+    let (ok, msg) = jitLinkStaticLibraryInto(jit, jd, libPath)
     check ok
     check msg.len == 0
 
