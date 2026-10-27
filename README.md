@@ -67,6 +67,47 @@ Package page: <https://nimble.directory/pkg/llvnim>
 
 Or vendor `src/llvnim.nim` and `import llvnim`.
 
+## Nimoscope
+
+`nimoscope` is a complete example of a compiler written with `llvnim`. It demonstrates how to build a frontend, generate LLVM IR, and JIT compile it.
+
+Features:
+- Lexer and parser for a small C-like language.
+- AST generation.
+- IR generation using `llvnim` and `llvnim/[dx, idiomatic]` helpers.
+- JIT execution using `createLLJIT`.
+
+Try it out:
+
+```sh
+cd examples/nimoscope
+nim c -r main.nim
+```
+
+Example usage:
+```
+  >>> 
+  ... def fib(a)
+  ...   if a < 2 a;
+  ...   else     fib(a - 1) + fib(a - 2);
+  ...
+  >>> fib(10);
+55.0
+  >>> extern sin(a);
+  >>> 
+  ... for i = 0; i < 7; i = i + 1; {
+  ...   print(sin(i));
+  ... }
+  ...
+0.000000
+0.841471
+0.909297
+0.141120
+-0.756802
+-0.958924
+-0.279415
+```
+
 ## Quickstart
 
 Build an `add` function, verify it, print the IR.

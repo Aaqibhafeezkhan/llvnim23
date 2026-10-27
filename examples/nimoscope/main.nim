@@ -2,6 +2,15 @@ import codegen, parser, jit
 import std/[rdstdin, tables, os]
 import ../../src/llvnim/[idiomatic, shim, dx]
 
+when defined(posix):
+  import std/posix
+
+  proc segvHandler(sig: cint) {.noconv.} =
+    stderr.writeLine("error: segmentation fault (possible stack overflow / infinite recursion)")
+    quit(1)
+
+  signal(SIGSEGV, segvHandler)
+
 var state = initTable[string, float]()
 
 proc readGlobals(jctx: jit.Context, jd: LLVMOrcJITDylibRef, names: seq[string]): Table[string, float] =
