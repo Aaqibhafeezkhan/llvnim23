@@ -10,6 +10,9 @@ type
     env*: Table[string, LLVMValueRef]
     externs*: Table[string, LLVMValueRef]
     currentFn*: LLVMValueRef
+    loopExit*: LLVMBasicBlockRef
+    loopContinue*: LLVMBasicBlockRef
+    loopStack*: seq[tuple[exitBB, continueBB: LLVMBasicBlockRef]]
 
   CodegenError* = object of CatchableError
 
@@ -55,6 +58,12 @@ proc collectVars(node: Node, acc: var HashSet[string]) =
     for (c, bd) in b.elifs:
       collectVars(c, acc); collectVars(bd, acc)
     if not b.elseBody.isNil: collectVars(b.elseBody, acc)
+  of nkFor:
+    let f = ForNode(node)
+    if not f.init.isNil: collectVars(f.init, acc)
+    if not f.cond.isNil: collectVars(f.cond, acc)
+    if not f.step.isNil: collectVars(f.step, acc)
+    collectVars(f.body, acc)
   else: discard
 
 proc allocaVars(ctx: Context, names: HashSet[string]) =
@@ -139,7 +148,7 @@ proc codegenBinary*(ctx: Context, node: BinaryNode): LLVMValueRef =
   of tkAnd: return ctx.codegenAnd(node.lvalue, node.rvalue)
   of tkOr:  return ctx.codegenOr(node.lvalue, node.rvalue)
   else: discard
-  
+
   if node.token.kind == tkEquals:
     let name = IdentNode(node.lvalue).token.lexeme
     let v = ctx.codegen(node.rvalue)
@@ -261,16 +270,77 @@ proc codegenBranch*(ctx: Context, node: BranchNode): LLVMValueRef =
       addIncoming(phi, v, bb)
     result = phi
 
+proc codegenFor*(ctx: Context, node: ForNode): LLVMValueRef =
+  if not node.init.isNil:
+    discard ctx.codegen(node.init)
+
+  let condBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forcond")
+  let bodyBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forbody")
+  let stepBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forstep")
+  let exitBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forexit")
+  discard buildBr(ctx.builder, condBB)
+
+  positionBuilderAtEnd(ctx.builder, condBB)
+  if node.cond.isNil:
+    discard buildCondBr(ctx.builder, constInt(i1(ctx.llvmCtx), 1), bodyBB, exitBB)
+  else:
+    discard buildCondBr(ctx.builder, condToI1(ctx, node.cond), bodyBB, exitBB)
+
+  ctx.loopStack.add (exitBB, stepBB)
+
+  positionBuilderAtEnd(ctx.builder, bodyBB)
+  if node.body.kind == nkBlock:
+    discard ctx.codegenBlock(BlockNode(node.body))
+  else:
+    discard ctx.codegen(node.body)
+  discard buildBr(ctx.builder, stepBB)
+
+  positionBuilderAtEnd(ctx.builder, stepBB)
+  if not node.step.isNil:
+    discard ctx.codegen(node.step)
+  discard buildBr(ctx.builder, condBB)
+
+  positionBuilderAtEnd(ctx.builder, exitBB)
+  discard ctx.loopStack.pop()
+  result = constReal(ctx.llvmCtx.f64(), NaN)
+
+proc codegenBreak*(ctx: Context, pos: int): LLVMValueRef =
+  if ctx.loopStack.len == 0:
+    newError(pos, "break outside loop")
+  discard buildBr(ctx.builder, ctx.loopStack[^1].exitBB)
+  let dead = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "afterbreak")
+  positionBuilderAtEnd(ctx.builder, dead)
+  result = constReal(ctx.llvmCtx.f64(), NaN)
+
+proc codegenContinue*(ctx: Context, pos: int): LLVMValueRef =
+  if ctx.loopStack.len == 0:
+    newError(pos, "continue outside loop")
+  discard buildBr(ctx.builder, ctx.loopStack[^1].continueBB)
+  let dead = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "aftercontinue")
+  positionBuilderAtEnd(ctx.builder, dead)
+  result = constReal(ctx.llvmCtx.f64(), NaN)
+
 proc codegen*(ctx: Context, node: Node): LLVMValueRef =
   case node.kind
-  of nkNumber: ctx.codegenNumber(NumberNode(node))
-  of nkUnary:  ctx.codegenUnary(UnaryNode(node))
-  of nkBinary: ctx.codegenBinary(BinaryNode(node))
-  of nkIdent:  ctx.codegenIdent(IdentNode(node))
-  of nkBlock:  ctx.codegenBlock(BlockNode(node))
-  of nkExtern: ctx.codegenExtern(ExternNode(node))
-  of nkCall:   ctx.codegenCall(CallNode(node))
-  of nkBranch: ctx.codegenBranch(BranchNode(node))
+  of nkNumber:   ctx.codegenNumber(NumberNode(node))
+  of nkUnary:    ctx.codegenUnary(UnaryNode(node))
+  of nkBinary:   ctx.codegenBinary(BinaryNode(node))
+  of nkIdent:    ctx.codegenIdent(IdentNode(node))
+  of nkBlock:    ctx.codegenBlock(BlockNode(node))
+  of nkExtern:   ctx.codegenExtern(ExternNode(node))
+  of nkCall:     ctx.codegenCall(CallNode(node))
+  of nkBranch:   ctx.codegenBranch(BranchNode(node))
+  of nkFor:      ctx.codegenFor(ForNode(node))
+  of nkBreak:    ctx.codegenBreak(BreakNode(node).token.pos)
+  of nkContinue: ctx.codegenContinue(ContinueNode(node).token.pos)
+
+proc verifyModule*(m: LLVMModuleRef): tuple[ok: bool, err: string] =
+  var errMsg: cstring
+  let bad = LLVMVerifyModule(m, LLVMReturnStatusAction, errMsg)
+  result.ok = bad == 0
+  if not errMsg.isNil:
+    result.err = $errMsg
+    LLVMDisposeMessage(errMsg)
 
 proc codegenFunction*(ctx: Context, name: string, body: BlockNode): LLVMValueRef =
   let (fn, entryBB) = createFunction(ctx.module, ctx.llvmCtx, name, ctx.llvmCtx.f64(), [])
@@ -279,6 +349,9 @@ proc codegenFunction*(ctx: Context, name: string, body: BlockNode): LLVMValueRef
   try:
     let v = ctx.codegenBlock(body)
     discard buildRet(ctx.builder, v)
+    let (ok, verr) = verifyModule(ctx.module)
+    if not ok:
+      newError(0, "invalid IR: " & verr)
     result = fn
   finally:
     ctx.currentFn = LLVMValueRef(nil)

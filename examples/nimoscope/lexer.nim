@@ -31,6 +31,9 @@ type
     tkIf
     tkElif
     tkElse
+    tkFor
+    tkContinue
+    tkBreak
 
     tkEOS
 
@@ -125,12 +128,15 @@ proc getTok*(col: var int, text: string): Token =
     let ident = text[start ..< col]
 
     result = Token(kind: 
-      if ident   == "extern": tkExtern
-      elif ident == "if":     tkIf
-      elif ident == "elif":   tkElif
-      elif ident == "else":   tkElse
-      elif ident == "and": tkAnd
-      elif ident == "or":  tkOr
+      if ident   == "extern":   tkExtern
+      elif ident == "if":       tkIf
+      elif ident == "elif":     tkElif
+      elif ident == "else":     tkElse
+      elif ident == "and":      tkAnd
+      elif ident == "or":       tkOr
+      elif ident == "for":      tkFor
+      elif ident == "continue": tkContinue
+      elif ident == "break":    tkBreak
       else: tkIdent, 
     lexeme: ident, pos: start)
   else:
@@ -138,32 +144,35 @@ proc getTok*(col: var int, text: string): Token =
 
 proc mean*(k: TokenKind): string =
   case k
-  of tkEOF:    "end of file"
-  of tkNumber: "number"
-  of tkIdent:  "identifier"
-  of tkPlus:   "plus operator '+'"
-  of tkMinus:  "minus operator '-'"
-  of tkStar:   "star operator '*'"
-  of tkSlash:  "slash operator '/'"
-  of tkGT:     "greater-than operator '>'"
-  of tkLT:     "less-than operator '<'"
-  of tkGTE:    "greater-or-equal operator '>='"
-  of tkLTE:    "less-or-equal operator '<='"
-  of tkEQ:     "equality operator '=='"
-  of tkNEQ:    "inequality operator '!='"
-  of tkAnd:    "operator 'and'"
-  of tkOr:     "operator 'or'"
-  of tkEquals: "equals operator '='"
-  of tkComma:  "comma ','"
-  of tkLParen: "left parenthesis '('"
-  of tkRParen: "right parenthesis ')'"
-  of tkLBrace: "left brace '{'"
-  of tkRBrace: "right brace '}'"
-  of tkExtern: "keyword 'extern'"
-  of tkIf:     "keyword 'if'"
-  of tkElif:   "keyword 'elif'"
-  of tkElse:   "keyword 'else'"
-  of tkEOS:    "end of statement ';'"
+  of tkEOF:      "end of file"
+  of tkNumber:   "number"
+  of tkIdent:    "identifier"
+  of tkPlus:     "plus operator '+'"
+  of tkMinus:    "minus operator '-'"
+  of tkStar:     "star operator '*'"
+  of tkSlash:    "slash operator '/'"
+  of tkGT:       "greater-than operator '>'"
+  of tkLT:       "less-than operator '<'"
+  of tkGTE:      "greater-or-equal operator '>='"
+  of tkLTE:      "less-or-equal operator '<='"
+  of tkEQ:       "equality operator '=='"
+  of tkNEQ:      "inequality operator '!='"
+  of tkAnd:      "operator 'and'"
+  of tkOr:       "operator 'or'"
+  of tkEquals:   "equals operator '='"
+  of tkComma:    "comma ','"
+  of tkLParen:   "left parenthesis '('"
+  of tkRParen:   "right parenthesis ')'"
+  of tkLBrace:   "left brace '{'"
+  of tkRBrace:   "right brace '}'"
+  of tkExtern:   "keyword 'extern'"
+  of tkIf:       "keyword 'if'"
+  of tkElif:     "keyword 'elif'"
+  of tkElse:     "keyword 'else'"
+  of tkFor:      "keyword 'for'"
+  of tkContinue: "keyword 'continue'"
+  of tkBreak:    "keyword 'break'"
+  of tkEOS:      "end of statement ';'"
 
 proc mean*(t: Token): string =
   case t.kind

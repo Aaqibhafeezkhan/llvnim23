@@ -123,16 +123,20 @@ proc parseExtern(ctx: Context, tok: Token): Node =
 
   return tok.newExternNode(name, args)
 
+proc expectEOS(ctx: Context, expr: Node) =
+  if expr.kind notin {nkBranch, nkFor}:
+    discard ctx.expect(tkEOS)
+
 proc parseBlock(ctx: Context, tok: Token): Node =
   var body: seq[Node]
 
   while ctx.peekTok().kind notin {tkRBrace, tkEOF}:
-    body.add(ctx.parseExpr())
+    let expr = ctx.parseExpr()
+    body.add(expr)
 
-    if ctx.peekTok().kind in {tkRBrace, tkEOF}:
-      break
+    if ctx.peekTok().kind in {tkRBrace, tkEOF}: break
 
-    discard ctx.expect(tkEOS)
+    ctx.expectEOS(expr)
     
   discard ctx.expect(tkRBrace)
 
@@ -166,11 +170,34 @@ proc parseIf(ctx: Context, tok: Token): Node =
 
   return tok.newBranchNode(ifCond, ifBody, elifs, elseBody)
 
+proc parseFor(ctx: Context, tok: Token): Node =
+  var init: Node
+  if ctx.peekTok().kind != tkEOS:
+    init = ctx.parseExpr()
+  discard ctx.expect(tkEOS)
+
+  var cond: Node
+  if ctx.peekTok().kind != tkEOS:
+    cond = ctx.parseExpr()
+  discard ctx.expect(tkEOS)
+
+  var step: Node
+  if ctx.peekTok().kind != tkEOS:
+    step = ctx.parseExpr()
+  discard ctx.expect(tkEOS)
+
+  let body = ctx.parseBlockOrExpr()
+
+  return tok.newForNode(init, cond, step, body)
+
 proc parseSpecial(ctx: Context): Node =
   let tok = ctx.peekTok()
 
-  if   tok.kind == tkExtern: return ctx.parseExtern(ctx.nextTok())
-  elif tok.kind == tkIf:     return ctx.parseIf(ctx.nextTok())
+  if   tok.kind == tkExtern:   return ctx.parseExtern(ctx.nextTok())
+  elif tok.kind == tkIf:       return ctx.parseIf(ctx.nextTok())
+  elif tok.kind == tkFor:      return ctx.parseFor(ctx.nextTok())
+  elif tok.kind == tkContinue: discard ctx.nextTok(); return tok.newContinueNode()
+  elif tok.kind == tkBreak:    discard ctx.nextTok(); return tok.newBreakNode()
 
   return ctx.parseAssignment()
 
@@ -185,5 +212,4 @@ proc parse*(text: string): BlockNode =
     let expr = ctx.parseExpr()
     result.body.add(expr)
     
-    if expr.kind != nkBranch:
-      discard ctx.expect(tkEOS)
+    ctx.expectEOS(expr)

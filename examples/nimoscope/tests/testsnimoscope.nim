@@ -287,6 +287,30 @@ suite "parser":
     let top = BinaryNode(b.body[0])
     check top.token.kind == tkLT
 
+  test "parse for full":
+    let b = parse("for i = 0; i < 10; i = i + 1; print(i);")
+    check b.body[0].kind == nkFor
+    let f = ForNode(b.body[0])
+    check not f.init.isNil
+    check not f.cond.isNil
+    check not f.step.isNil
+
+  test "parse for empty init":
+    let b = parse("for ; i < 10; i = i + 1; print(i);")
+    check ForNode(b.body[0]).init.isNil
+
+  test "parse for empty cond":
+    let b = parse("for i = 0; ; i = i + 1; print(i);")
+    check ForNode(b.body[0]).cond.isNil
+
+  test "parse for empty step":
+    let b = parse("for i = 0; i < 10;; print(i);")
+    check ForNode(b.body[0]).step.isNil
+
+  test "parse for with block":
+    let b = parse("for i = 0; i < 3; i = i + 1; { print(i); }")
+    check ForNode(b.body[0]).body.kind == nkBlock
+
 proc ir(src: string): string =
   let ctx = codegen.newContext()
   discard codegenFunction(ctx, "entry", parse(src))
@@ -382,6 +406,16 @@ suite "codegen":
   test "or emits phi":
     let s = ir("x = 1; y = 2; x or y;")
     check "phi double" in s
+
+  test "for emits loop blocks":
+    let s = ir("for i = 0; i < 3; i = i + 1; print(i);")
+    check "forcond" in s
+    check "forbody" in s
+    check "forexit" in s
+
+  test "for emits condbr":
+    let s = ir("for i = 0; i < 3; i = i + 1; print(i);")
+    check "br i1" in s
 
 proc run(src: string): float =
   let ctx = codegen.newContext()
@@ -492,3 +526,59 @@ suite "jit":
 
   test "combined expression":
     check run("x = 10; if (x > 5 and x < 20) 1; else 0;") == 1.0
+
+  test "for sums via global":
+    check run("s = 0; for i = 0; i < 5; i = i + 1; s = s + i; s;") == 10.0
+
+  test "for with block":
+    check run("s = 0; for i = 0; i < 5; i = i + 1; { s = s + i; } s;") == 10.0
+
+  test "for zero iterations":
+    check run("s = 0; for i = 0; i < 0; i = i + 1; s = s + 1; s;") == 0.0
+
+  test "break exits loop":
+    check run("s = 0; for i = 0; i < 10; i = i + 1; { if i == 3 break; s = s + 1; } s;") == 3.0
+
+  test "continue skips body":
+    check run("s = 0; for i = 0; i < 5; i = i + 1; { if i == 2 continue; s = s + i; } s;") == 8.0
+
+  test "break at start":
+    check run("s = 0; for i = 0; i < 10; i = i + 1; { break; s = s + 1; } s;") == 0.0
+
+  test "continue all iterations":
+    check run("s = 0; for i = 0; i < 5; i = i + 1; { continue; s = s + 1; } s;") == 0.0
+
+  test "break in nested loop exits inner":
+    check run("""
+s = 0;
+for i = 0; i < 3; i = i + 1; {
+  for j = 0; j < 3; j = j + 1; {
+    if j == 1 break;
+    s = s + 1;
+  }
+}
+s;
+""") == 3.0
+
+  test "continue in nested loop":
+    check run("""
+s = 0;
+for i = 0; i < 3; i = i + 1; {
+  for j = 0; j < 3; j = j + 1; {
+    if j == 1 continue;
+    s = s + 1;
+  }
+}
+s;
+""") == 6.0
+
+  test "break inside if only":
+    check run("s = 0; for i = 0; i < 5; i = i + 1; { if i == 2 break; s = s + 1; } s;") == 2.0
+
+  test "break outside loop errors":
+    expect CodegenError:
+      discard run("break;")
+
+  test "continue outside loop errors":
+    expect CodegenError:
+      discard run("continue;")

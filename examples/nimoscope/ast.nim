@@ -4,7 +4,7 @@ import std/[strutils, sequtils]
 type
   NodeKind* = enum
     nkNumber, nkUnary, nkBinary, nkIdent, nkBlock
-    nkExtern, nkCall, nkBranch
+    nkExtern, nkCall, nkBranch, nkFor, nkContinue, nkBreak
 
   Node* = ref object of RootObj
     kind*: NodeKind
@@ -42,6 +42,15 @@ type
     elifs*: seq[(Node, Node)]
     elseBody*: Node
 
+  ForNode* = ref object of Node
+    init*: Node
+    cond*: Node
+    step*: Node
+    body*: Node
+
+  ContinueNode* = ref object of Node
+  BreakNode* = ref object of Node
+
 proc `$`*(n: Node): string =
   case n.kind
   of nkNumber: $NumberNode(n).value
@@ -70,6 +79,14 @@ proc `$`*(n: Node): string =
     if br.elseBody != nil:
       result.add " else " & $br.elseBody
     return
+  of nkFor:
+    let f = ForNode(n)
+    let s1 = if f.init != nil: $f.init else: ""
+    let s2 = if f.cond != nil: $f.cond else: ""
+    let s3 = if f.step != nil: $f.step else: ""
+    "for " & s1 & "; " & s2 & "; " & s3 & "; " & $f.body
+  of nkContinue: "continue"
+  of nkBreak: "break"
 
 proc newNumberNode*(token: Token, value: float): NumberNode =
   NumberNode(kind: nkNumber, token: token, value: value)
@@ -94,3 +111,12 @@ proc newCallNode*(token: Token, name: Token, args: seq[Node]): CallNode =
 
 proc newBranchNode*(token: Token, cond: Node, body: Node, elifs: seq[(Node, Node)], elseBody: Node): BranchNode =
   BranchNode(kind: nkBranch, token: token, cond: cond, body: body, elifs: elifs, elseBody: elseBody)
+
+proc newForNode*(tok: Token, init, cond, step: Node, body: Node): ForNode =
+  ForNode(token: tok, kind: nkFor, init: init, cond: cond, step: step, body: body)
+
+proc newContinueNode*(tok: Token): ContinueNode =
+  ContinueNode(token: tok, kind: nkContinue)
+
+proc newBreakNode*(tok: Token): BreakNode =
+  BreakNode(token: tok, kind: nkBreak)
