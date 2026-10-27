@@ -53,6 +53,10 @@ jobs:
         run: |
           nim c -r --lineTrace:on --stackTrace:on -o:tests/testshim tests/testshim.nim
 
+      - name: Build nimoscope runtime
+        working-directory: examples/nimoscope
+        run: gcc -shared -fPIC -o libruntime.so runtime.c
+
       - name: Run nimoscope tests
         working-directory: examples/nimoscope
         run: |
