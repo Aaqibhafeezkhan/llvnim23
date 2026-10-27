@@ -3456,3 +3456,28 @@ entry:
     let (ok, msg) = enableDebugSupport(jit)
     check ok
     check msg.len == 0
+
+  test "LLVMGetInsertBlock returns current block":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("insert_block", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    
+    let bb1 = LLVMAppendBasicBlockInContext(ctx, fn, "bb1")
+    let bb2 = LLVMAppendBasicBlockInContext(ctx, fn, "bb2")
+    
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+
+    LLVMPositionBuilderAtEnd(b, bb1)
+    check LLVMGetInsertBlock(b) == bb1
+
+    LLVMPositionBuilderAtEnd(b, bb2)
+    check LLVMGetInsertBlock(b) == bb2
+
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+    check LLVMGetInsertBlock(b) == bb2

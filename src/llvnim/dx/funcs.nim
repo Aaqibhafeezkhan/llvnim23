@@ -11,3 +11,9 @@ proc createFunction*(m: LLVMModuleRef; ctx: LLVMContextRef; name: string; retTy:
   let fn = LLVMAddFunction(m, name.cstring, fnTy)
   let entryBB = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
   return (fn, entryBB)
+
+proc functionType*(retTy: LLVMTypeRef; paramTys: openArray[LLVMTypeRef]; isVarArg: bool = false): LLVMTypeRef =
+  ## Creates a function type without adding it to a module.
+  let varArgBool = if isVarArg: LLVMTrue else: LLVMFalse
+  let paramPtr = if paramTys.len > 0: cast[ptr LLVMTypeRef](unsafeAddr paramTys[0]) else: nil
+  LLVMFunctionType(retTy, paramPtr, cuint(paramTys.len), varArgBool)

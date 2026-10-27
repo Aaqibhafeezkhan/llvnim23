@@ -1196,3 +1196,5 @@ proc LLVMOrcCreateNewThreadSafeContextFromLLVMContext*(Ctx: LLVMContextRef): LLV
 
 proc LLVMOrcLLJITAddObjectFile*(J: LLVMOrcLLJITRef; JD: LLVMOrcJITDylibRef; ObjBuffer: LLVMMemoryBufferRef): LLVMErrorRef {.llvmImport.}
 proc LLVMOrcLLJITEnableDebugSupport*(J: LLVMOrcLLJITRef): LLVMErrorRef {.llvmImport.}
+
+proc LLVMGetInsertBlock*(Builder: LLVMBuilderRef): LLVMBasicBlockRef {.llvmImport.}
