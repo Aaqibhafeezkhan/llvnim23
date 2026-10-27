@@ -124,7 +124,7 @@ proc parseExtern(ctx: Context, tok: Token): Node =
   return tok.newExternNode(name, args)
 
 proc expectEOS(ctx: Context, expr: Node) =
-  if expr.kind notin {nkBranch, nkFor}:
+  if expr.kind notin {nkBranch, nkFor, nkDef}:
     discard ctx.expect(tkEOS)
 
 proc parseBlock(ctx: Context, tok: Token): Node =
@@ -147,7 +147,7 @@ proc parseBlockOrExpr(ctx: Context): Node =
     result = ctx.parseBlock(ctx.nextTok())
   else:
     result = ctx.parseExpr()
-    discard ctx.expect(tkEOS)
+    ctx.expectEOS(result)
 
 proc parseBranch(ctx: Context): (Node, Node) =
   let cond = ctx.parseExpr()
@@ -190,6 +190,31 @@ proc parseFor(ctx: Context, tok: Token): Node =
 
   return tok.newForNode(init, cond, step, body)
 
+proc parseDef(ctx: Context, tok: Token): Node =
+  let name = ctx.expect(tkIdent)
+
+  discard ctx.expect(tkLParen)
+
+  var args: seq[Token]
+
+  while ctx.peekTok().kind notin {tkRParen, tkEOF}:
+    args.add(ctx.expect(tkIdent))
+
+    if ctx.peekTok().kind == tkRParen: break
+    discard ctx.expect(tkComma)
+
+  discard ctx.expect(tkRParen)
+
+  let body = ctx.parseBlockOrExpr()
+
+  return tok.newDefNode(name, args, body)
+
+proc parseReturn(ctx: Context, tok: Token): Node =
+  var expr: Node
+  if ctx.peekTok().kind != tkEOS:
+    expr = ctx.parseExpr()
+  return tok.newReturnNode(expr)
+
 proc parseSpecial(ctx: Context): Node =
   let tok = ctx.peekTok()
 
@@ -198,6 +223,8 @@ proc parseSpecial(ctx: Context): Node =
   elif tok.kind == tkFor:      return ctx.parseFor(ctx.nextTok())
   elif tok.kind == tkContinue: discard ctx.nextTok(); return tok.newContinueNode()
   elif tok.kind == tkBreak:    discard ctx.nextTok(); return tok.newBreakNode()
+  elif tok.kind == tkDef:      return ctx.parseDef(ctx.nextTok())
+  elif tok.kind == tkReturn:   return ctx.parseReturn(ctx.nextTok())
 
   return ctx.parseAssignment()
 
@@ -213,3 +240,7 @@ proc parse*(text: string): BlockNode =
     result.body.add(expr)
     
     ctx.expectEOS(expr)
+
+when isMainModule:
+  for s in parse("def fib(a) if a < 2 return a; else fib(a-1)+fib(a-2);").body:
+    echo s

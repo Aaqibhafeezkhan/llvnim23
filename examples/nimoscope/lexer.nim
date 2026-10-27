@@ -34,6 +34,8 @@ type
     tkFor
     tkContinue
     tkBreak
+    tkDef
+    tkReturn
 
     tkEOS
 
@@ -137,6 +139,8 @@ proc getTok*(col: var int, text: string): Token =
       elif ident == "for":      tkFor
       elif ident == "continue": tkContinue
       elif ident == "break":    tkBreak
+      elif ident == "def":      tkDef
+      elif ident == "return":   tkReturn
       else: tkIdent, 
     lexeme: ident, pos: start)
   else:
@@ -172,6 +176,8 @@ proc mean*(k: TokenKind): string =
   of tkFor:      "keyword 'for'"
   of tkContinue: "keyword 'continue'"
   of tkBreak:    "keyword 'break'"
+  of tkDef:      "keyword 'def'"
+  of tkReturn:   "keyword 'return'"
   of tkEOS:      "end of statement ';'"
 
 proc mean*(t: Token): string =

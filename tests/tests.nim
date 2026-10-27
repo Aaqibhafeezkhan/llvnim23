@@ -3481,3 +3481,20 @@ entry:
 
     discard LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
     check LLVMGetInsertBlock(b) == bb2
+
+  test "LLVMDeleteFunction removes function from module":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("del_fn", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "foo", fnTy)
+
+    check not fn.isNil
+    check LLVMGetNamedFunction(m, "foo") == fn
+
+    LLVMDeleteFunction(fn)
+
+    check LLVMGetNamedFunction(m, "foo").isNil

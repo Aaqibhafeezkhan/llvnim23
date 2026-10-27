@@ -5,6 +5,7 @@ type
   NodeKind* = enum
     nkNumber, nkUnary, nkBinary, nkIdent, nkBlock
     nkExtern, nkCall, nkBranch, nkFor, nkContinue, nkBreak
+    nkDef, nkReturn
 
   Node* = ref object of RootObj
     kind*: NodeKind
@@ -48,8 +49,16 @@ type
     step*: Node
     body*: Node
 
+  DefNode* = ref object of Node
+    name*: Token
+    args*: seq[Token]
+    body*: Node
+
   ContinueNode* = ref object of Node
   BreakNode* = ref object of Node
+
+  ReturnNode* = ref object of Node
+    value*: Node
 
 proc `$`*(n: Node): string =
   case n.kind
@@ -87,6 +96,12 @@ proc `$`*(n: Node): string =
     "for " & s1 & "; " & s2 & "; " & s3 & "; " & $f.body
   of nkContinue: "continue"
   of nkBreak: "break"
+  of nkReturn:
+    let r = ReturnNode(n)
+    if r.value != nil: "return " & $r.value else: "return"
+  of nkDef:
+    let d = DefNode(n)
+    "def " & d.name.lexeme & "(" & d.args.mapIt(it.lexeme).join(", ") & ") " & $d.body
 
 proc newNumberNode*(token: Token, value: float): NumberNode =
   NumberNode(kind: nkNumber, token: token, value: value)
@@ -120,3 +135,9 @@ proc newContinueNode*(tok: Token): ContinueNode =
 
 proc newBreakNode*(tok: Token): BreakNode =
   BreakNode(token: tok, kind: nkBreak)
+
+proc newReturnNode*(tok: Token, value: Node): ReturnNode =
+  ReturnNode(token: tok, kind: nkReturn, value: value)
+
+proc newDefNode*(token: Token, name: Token, args: seq[Token], body: Node): DefNode =
+  DefNode(kind: nkDef, token: token, name: name, args: args, body: body)

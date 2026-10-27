@@ -1,27 +1,35 @@
 import ../../src/llvnim/[idiomatic, dx]
 import ast, lexer
-import std/[tables, sets]
+import std/[tables]
 
 type
   Context* = ref object
     llvmCtx*: LLVMContextRef
     module*: LLVMModuleRef
     builder*: LLVMBuilderRef
-    env*: Table[string, LLVMValueRef]
+    scopes*: seq[Table[string, LLVMValueRef]]
+    pendingLocals*: Table[string, LLVMValueRef]
     externs*: Table[string, LLVMValueRef]
+    funcs*: Table[string, LLVMValueRef]
     currentFn*: LLVMValueRef
-    loopExit*: LLVMBasicBlockRef
-    loopContinue*: LLVMBasicBlockRef
+    inDefBody*: bool
     loopStack*: seq[tuple[exitBB, continueBB: LLVMBasicBlockRef]]
 
   CodegenError* = object of CatchableError
 
+proc pushScope(ctx: Context) = ctx.scopes.add initTable[string, LLVMValueRef]()
+proc popScope(ctx: Context) = discard ctx.scopes.pop()
+
+proc lookupVar(ctx: Context, name: string): LLVMValueRef =
+  for i in countdown(ctx.scopes.len - 1, 0):
+    if ctx.scopes[i].hasKey(name): return ctx.scopes[i][name]
+  nil
+
+proc declareVar(ctx: Context, name: string, v: LLVMValueRef) =
+  ctx.scopes[^1][name] = v
+
 proc newError(pos: int, msg: string) {.noreturn.} =
   raise newException(CodegenError, "pos " & $pos & ": " & msg)
-
-proc nimPrint*(x: cdouble): cdouble {.exportc: "print", cdecl.} =
-  echo x
-  result = x
 
 proc newContext*(): Context =
   let c = contextCreate()
@@ -29,51 +37,56 @@ proc newContext*(): Context =
     llvmCtx: c,
     module:  moduleCreateWithNameInContext("compiler", c),
     builder: createBuilderInContext(c),
-    env: initTable[string, LLVMValueRef](),
     externs: initTable[string, LLVMValueRef](),
+    funcs: initTable[string, LLVMValueRef](),
+    scopes: @[initTable[string, LLVMValueRef]()],
+    pendingLocals: initTable[string, LLVMValueRef](),
   )
   let printTy = functionType(f64(c), [f64(c)], false)
   let printFn = addFunction(result.module, "print".cstring, printTy)
   setLinkage(printFn, LLVMExternalLinkage)
   result.externs["print"] = printFn
 
-proc collectVars(node: Node, acc: var HashSet[string]) =
+proc blockTerminated(ctx: Context): bool =
+  let bb = getInsertBlock(ctx.builder)
+  if bb.isNil: return false
+  LLVMGetBasicBlockTerminator(bb) != LLVMValueRef(nil)
+
+proc analyzeScopes(node: Node, depth: int, vars: var Table[string, int]) =
   case node.kind
   of nkBinary:
     let b = BinaryNode(node)
     if b.token.kind == tkEquals and b.lvalue.kind == nkIdent:
-      acc.incl IdentNode(b.lvalue).token.lexeme
-    collectVars(b.lvalue, acc)
-    collectVars(b.rvalue, acc)
-  of nkUnary: collectVars(UnaryNode(node).value, acc)
+      let name = IdentNode(b.lvalue).token.lexeme
+      if not vars.hasKey(name) or vars[name] > depth:
+        vars[name] = depth
+    analyzeScopes(b.lvalue, depth, vars)
+    analyzeScopes(b.rvalue, depth, vars)
+  of nkUnary: analyzeScopes(UnaryNode(node).value, depth, vars)
   of nkBlock:
-    for s in BlockNode(node).body: collectVars(s, acc)
+    for s in BlockNode(node).body: analyzeScopes(s, depth, vars)
   of nkCall:
-    for a in CallNode(node).args: collectVars(a, acc)
+    for a in CallNode(node).args: analyzeScopes(a, depth, vars)
   of nkExtern: discard
+  of nkReturn:
+    let r = ReturnNode(node)
+    if not r.value.isNil: analyzeScopes(r.value, depth, vars)
+  of nkDef: discard
   of nkBranch:
     let b = BranchNode(node)
-    collectVars(b.cond, acc)
-    collectVars(b.body, acc)
+    analyzeScopes(b.cond, depth, vars)
+    analyzeScopes(b.body, depth+1, vars)
     for (c, bd) in b.elifs:
-      collectVars(c, acc); collectVars(bd, acc)
-    if not b.elseBody.isNil: collectVars(b.elseBody, acc)
+      analyzeScopes(c, depth+1, vars)
+      analyzeScopes(bd, depth+1, vars)
+    if not b.elseBody.isNil: analyzeScopes(b.elseBody, depth+1, vars)
   of nkFor:
     let f = ForNode(node)
-    if not f.init.isNil: collectVars(f.init, acc)
-    if not f.cond.isNil: collectVars(f.cond, acc)
-    if not f.step.isNil: collectVars(f.step, acc)
-    collectVars(f.body, acc)
+    if not f.init.isNil: analyzeScopes(f.init, depth+1, vars)
+    if not f.cond.isNil: analyzeScopes(f.cond, depth+1, vars)
+    if not f.step.isNil: analyzeScopes(f.step, depth+1, vars)
+    analyzeScopes(f.body, depth+1, vars)
   else: discard
-
-proc allocaVars(ctx: Context, names: HashSet[string]) =
-  for name in names:
-    if ctx.env.hasKey(name): continue
-    let g = addGlobal(ctx.module, ctx.llvmCtx.f64(), name.cstring)
-    setInitializer(g, constReal(ctx.llvmCtx.f64(), 0.0))
-    setGlobalConstant(g, LLVMFalse)
-    setLinkage(g, LLVMExternalLinkage)
-    ctx.env[name] = g
 
 proc codegen*(ctx: Context, node: Node): LLVMValueRef
 
@@ -152,7 +165,14 @@ proc codegenBinary*(ctx: Context, node: BinaryNode): LLVMValueRef =
   if node.token.kind == tkEquals:
     let name = IdentNode(node.lvalue).token.lexeme
     let v = ctx.codegen(node.rvalue)
-    discard store(ctx.builder, ctx.env[name], v)
+    var ptrr = ctx.lookupVar(name)
+    if ptrr.isNil:
+      if ctx.pendingLocals.hasKey(name):
+        ptrr = ctx.pendingLocals[name]
+        ctx.declareVar(name, ptrr)
+      else:
+        node.token.pos.newError("internal: variable '" & name & "' not pre-allocated")
+    discard store(ctx.builder, ptrr, v)
     return v
 
   let l = ctx.codegen(node.lvalue)
@@ -167,27 +187,30 @@ proc codegenBinary*(ctx: Context, node: BinaryNode): LLVMValueRef =
     result = buildUIToFP(ctx.builder, cmp, ctx.llvmCtx.f64(), "booltmp")
   else:       node.token.pos.newError("Unsupported binary: " & node.token.mean())
 
-proc codegenIdent(ctx: Context, node: IdentNode): LLVMValueRef =
+proc codegenIdent*(ctx: Context, node: IdentNode): LLVMValueRef =
   let name = node.token.lexeme
-  if not ctx.env.hasKey(name):
+  let ptrr = ctx.lookupVar(name)
+  if ptrr.isNil:
     node.token.pos.newError("Undefined identifier: " & name)
-  result = buildLoad2(ctx.builder, ctx.llvmCtx.f64(), ctx.env[name], (name & ".val").cstring)
+  result = buildLoad2(ctx.builder, ctx.llvmCtx.f64(), ptrr, (name & ".val").cstring)
 
-proc codegenNumber(ctx: Context, node: NumberNode): LLVMValueRef =
+proc codegenNumber*(ctx: Context, node: NumberNode): LLVMValueRef =
   constReal(ctx.llvmCtx.f64(), node.value)
 
 proc codegenBlock*(ctx: Context, node: BlockNode): LLVMValueRef =
-  var names: HashSet[string]
-  collectVars(node, names)
-  allocaVars(ctx, names)
   result = constReal(ctx.llvmCtx.f64(), NaN)
   for stmt in node.body:
+    if blockTerminated(ctx): break
     result = ctx.codegen(stmt)
 
-proc codegenExtern(ctx: Context, node: ExternNode): LLVMValueRef =
+proc codegenExtern*(ctx: Context, node: ExternNode): LLVMValueRef =
   let name = node.name.lexeme
   if ctx.externs.hasKey(name):
-    return ctx.externs[name]
+    return constReal(ctx.llvmCtx.f64(), NaN)
+  if ctx.funcs.hasKey(name):
+    node.name.pos.newError("redefinition of '" & name & "' (already a user function)")
+  if not ctx.lookupVar(name).isNil:
+    node.name.pos.newError("redefinition of '" & name & "' (already a variable)")
   var params = newSeq[LLVMTypeRef](node.args.len)
   for i in 0 ..< node.args.len:
     params[i] = ctx.llvmCtx.f64()
@@ -195,16 +218,21 @@ proc codegenExtern(ctx: Context, node: ExternNode): LLVMValueRef =
   let fn = addFunction(ctx.module, name.cstring, fnTy)
   setLinkage(fn, LLVMExternalLinkage)
   ctx.externs[name] = fn
-  result = fn
+  result = constReal(ctx.llvmCtx.f64(), NaN)
 
-proc codegenCall(ctx: Context, node: CallNode): LLVMValueRef =
+proc codegenCall*(ctx: Context, node: CallNode): LLVMValueRef =
   let name = node.name.lexeme
-  if not ctx.externs.hasKey(name):
+  var fn: LLVMValueRef
+  if ctx.funcs.hasKey(name):
+    fn = ctx.funcs[name]
+  elif ctx.externs.hasKey(name):
+    fn = ctx.externs[name]
+  else:
     node.token.pos.newError("Undefined function: " & name)
   var args = newSeq[LLVMValueRef](node.args.len)
   for i, a in node.args:
     args[i] = ctx.codegen(a)
-  result = call(ctx.builder, ctx.externs[name], args, name & ".call")
+  result = call(ctx.builder, fn, args, name & ".call")
 
 proc condToI1(ctx: Context, cond: Node): LLVMValueRef =
   let v = ctx.codegen(cond)
@@ -225,7 +253,11 @@ proc codegenElseChain(ctx: Context, elifs: seq[(Node, Node)], elseBody: Node): L
   if elifs.len == 0:
     if elseBody.isNil:
       return constReal(ctx.llvmCtx.f64(), NaN)
-    return ctx.codegenBody(elseBody)
+    ctx.pushScope()
+    try:
+      return ctx.codegenBody(elseBody)
+    finally:
+      ctx.popScope()
 
   let (cond, body) = elifs[0]
   let iface = createIfElse(ctx.builder, ctx.llvmCtx, ctx.currentFn, condToI1(ctx, cond),
@@ -234,20 +266,28 @@ proc codegenElseChain(ctx: Context, elifs: seq[(Node, Node)], elseBody: Node): L
   var incoming: seq[(LLVMValueRef, LLVMBasicBlockRef)]
 
   thenBlock(iface):
+    ctx.pushScope()
     let tv = ctx.codegenBody(body)
-    incoming.add (tv, getInsertBlock(ctx.builder))
-    brToMerge(iface)
+    ctx.popScope()
+    if not blockTerminated(ctx):
+      incoming.add (tv, getInsertBlock(ctx.builder))
+      brToMerge(iface)
 
   elseBlock(iface):
     let ev = ctx.codegenElseChain(elifs[1..^1], elseBody)
-    incoming.add (ev, getInsertBlock(ctx.builder))
-    brToMerge(iface)
+    if not blockTerminated(ctx):
+      incoming.add (ev, getInsertBlock(ctx.builder))
+      brToMerge(iface)
 
   mergeBlock(iface):
-    let phi = buildPhi(ctx.builder, ctx.llvmCtx.f64(), "eliftmp")
-    for (v, bb) in incoming:
-      addIncoming(phi, v, bb)
-    result = phi
+    if incoming.len == 0:
+      discard buildUnreachable(ctx.builder)
+      result = constReal(ctx.llvmCtx.f64(), NaN)
+    else:
+      let phi = buildPhi(ctx.builder, ctx.llvmCtx.f64(), "eliftmp")
+      for (v, bb) in incoming:
+        addIncoming(phi, v, bb)
+      result = phi
 
 proc codegenBranch*(ctx: Context, node: BranchNode): LLVMValueRef =
   let iface = createIfElse(ctx.builder, ctx.llvmCtx, ctx.currentFn, condToI1(ctx, node.cond))
@@ -255,54 +295,69 @@ proc codegenBranch*(ctx: Context, node: BranchNode): LLVMValueRef =
   var incoming: seq[(LLVMValueRef, LLVMBasicBlockRef)]
 
   thenBlock(iface):
+    ctx.pushScope()
     let tv = ctx.codegenBody(node.body)
-    incoming.add (tv, getInsertBlock(ctx.builder))
-    brToMerge(iface)
+    ctx.popScope()
+    if not blockTerminated(ctx):
+      incoming.add (tv, getInsertBlock(ctx.builder))
+      brToMerge(iface)
 
   elseBlock(iface):
     let ev = ctx.codegenElseChain(node.elifs, node.elseBody)
-    incoming.add (ev, getInsertBlock(ctx.builder))
-    brToMerge(iface)
+    if not blockTerminated(ctx):
+      incoming.add (ev, getInsertBlock(ctx.builder))
+      brToMerge(iface)
 
   mergeBlock(iface):
-    let phi = buildPhi(ctx.builder, ctx.llvmCtx.f64(), "iftmp")
-    for (v, bb) in incoming:
-      addIncoming(phi, v, bb)
-    result = phi
+    if incoming.len == 0:
+      discard buildUnreachable(ctx.builder)
+      result = constReal(ctx.llvmCtx.f64(), NaN)
+    else:
+      let phi = buildPhi(ctx.builder, ctx.llvmCtx.f64(), "iftmp")
+      for (v, bb) in incoming:
+        addIncoming(phi, v, bb)
+      result = phi
 
 proc codegenFor*(ctx: Context, node: ForNode): LLVMValueRef =
-  if not node.init.isNil:
-    discard ctx.codegen(node.init)
+  ctx.pushScope()
+  try:
+    if not node.init.isNil:
+      discard ctx.codegen(node.init)
 
-  let condBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forcond")
-  let bodyBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forbody")
-  let stepBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forstep")
-  let exitBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forexit")
-  discard buildBr(ctx.builder, condBB)
+    let condBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forcond")
+    let bodyBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forbody")
+    let stepBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forstep")
+    let exitBB = appendBasicBlockInContext(ctx.llvmCtx, ctx.currentFn, "forexit")
+    discard buildBr(ctx.builder, condBB)
 
-  positionBuilderAtEnd(ctx.builder, condBB)
-  if node.cond.isNil:
-    discard buildCondBr(ctx.builder, constInt(i1(ctx.llvmCtx), 1), bodyBB, exitBB)
-  else:
-    discard buildCondBr(ctx.builder, condToI1(ctx, node.cond), bodyBB, exitBB)
+    positionBuilderAtEnd(ctx.builder, condBB)
+    if node.cond.isNil:
+      discard buildCondBr(ctx.builder, constInt(i1(ctx.llvmCtx), 1), bodyBB, exitBB)
+    else:
+      discard buildCondBr(ctx.builder, condToI1(ctx, node.cond), bodyBB, exitBB)
 
-  ctx.loopStack.add (exitBB, stepBB)
+    ctx.loopStack.add (exitBB, stepBB)
 
-  positionBuilderAtEnd(ctx.builder, bodyBB)
-  if node.body.kind == nkBlock:
-    discard ctx.codegenBlock(BlockNode(node.body))
-  else:
-    discard ctx.codegen(node.body)
-  discard buildBr(ctx.builder, stepBB)
+    positionBuilderAtEnd(ctx.builder, bodyBB)
+    if not blockTerminated(ctx):
+      if node.body.kind == nkBlock:
+        discard ctx.codegenBlock(BlockNode(node.body))
+      else:
+        discard ctx.codegen(node.body)
+      if not blockTerminated(ctx):
+        discard buildBr(ctx.builder, stepBB)
 
-  positionBuilderAtEnd(ctx.builder, stepBB)
-  if not node.step.isNil:
-    discard ctx.codegen(node.step)
-  discard buildBr(ctx.builder, condBB)
+    positionBuilderAtEnd(ctx.builder, stepBB)
+    if not blockTerminated(ctx):
+      if not node.step.isNil:
+        discard ctx.codegen(node.step)
+      discard buildBr(ctx.builder, condBB)
 
-  positionBuilderAtEnd(ctx.builder, exitBB)
-  discard ctx.loopStack.pop()
-  result = constReal(ctx.llvmCtx.f64(), NaN)
+    positionBuilderAtEnd(ctx.builder, exitBB)
+    discard ctx.loopStack.pop()
+    result = constReal(ctx.llvmCtx.f64(), NaN)
+  finally:
+    ctx.popScope()
 
 proc codegenBreak*(ctx: Context, pos: int): LLVMValueRef =
   if ctx.loopStack.len == 0:
@@ -320,6 +375,18 @@ proc codegenContinue*(ctx: Context, pos: int): LLVMValueRef =
   positionBuilderAtEnd(ctx.builder, dead)
   result = constReal(ctx.llvmCtx.f64(), NaN)
 
+proc codegenReturn*(ctx: Context, node: ReturnNode): LLVMValueRef =
+  if not ctx.inDefBody:
+    node.token.pos.newError("return outside function")
+  if node.value.isNil:
+    discard buildRet(ctx.builder, constReal(ctx.llvmCtx.f64(), NaN))
+  else:
+    let v = ctx.codegen(node.value)
+    discard buildRet(ctx.builder, v)
+  result = constReal(ctx.llvmCtx.f64(), NaN)
+
+proc codegenDef*(ctx: Context, node: DefNode): LLVMValueRef
+
 proc codegen*(ctx: Context, node: Node): LLVMValueRef =
   case node.kind
   of nkNumber:   ctx.codegenNumber(NumberNode(node))
@@ -333,6 +400,8 @@ proc codegen*(ctx: Context, node: Node): LLVMValueRef =
   of nkFor:      ctx.codegenFor(ForNode(node))
   of nkBreak:    ctx.codegenBreak(BreakNode(node).token.pos)
   of nkContinue: ctx.codegenContinue(ContinueNode(node).token.pos)
+  of nkReturn:   ctx.codegenReturn(ReturnNode(node))
+  of nkDef:      ctx.codegenDef(DefNode(node))
 
 proc verifyModule*(m: LLVMModuleRef): tuple[ok: bool, err: string] =
   var errMsg: cstring
@@ -342,16 +411,84 @@ proc verifyModule*(m: LLVMModuleRef): tuple[ok: bool, err: string] =
     result.err = $errMsg
     LLVMDisposeMessage(errMsg)
 
-proc codegenFunction*(ctx: Context, name: string, body: BlockNode): LLVMValueRef =
-  let (fn, entryBB) = createFunction(ctx.module, ctx.llvmCtx, name, ctx.llvmCtx.f64(), [])
+proc genFuncBody(ctx: Context, fn: LLVMValueRef, entryBB: LLVMBasicBlockRef,
+                 params: seq[Token], body: Node, isTopLevel: bool) =
+  let savedBuilder = getInsertBlock(ctx.builder)
+  let savedFn = ctx.currentFn
+  let savedInDef = ctx.inDefBody
+  let savedPending = ctx.pendingLocals
+
   positionBuilderAtEnd(ctx.builder, entryBB)
   ctx.currentFn = fn
+  ctx.inDefBody = not isTopLevel
+  ctx.pendingLocals = initTable[string, LLVMValueRef]()
+
+  ctx.pushScope()
   try:
-    let v = ctx.codegenBlock(body)
-    discard buildRet(ctx.builder, v)
+    for i, p in params:
+      let pv = getParam(fn, cuint(i))
+      let pa = alloca(ctx.builder, ctx.llvmCtx.f64(), p.lexeme)
+      discard store(ctx.builder, pa, pv)
+      ctx.declareVar(p.lexeme, pa)
+
+    var varsByDepth: Table[string, int]
+    analyzeScopes(body, 0, varsByDepth)
+    for vname, depth in varsByDepth:
+      if isTopLevel and depth == 0:
+        if not ctx.scopes[0].hasKey(vname):
+          let g = addGlobal(ctx.module, ctx.llvmCtx.f64(), vname.cstring)
+          setInitializer(g, constReal(ctx.llvmCtx.f64(), 0.0))
+          setGlobalConstant(g, LLVMFalse)
+          setLinkage(g, LLVMExternalLinkage)
+          ctx.scopes[0][vname] = g
+      else:
+        if ctx.lookupVar(vname).isNil and not ctx.pendingLocals.hasKey(vname):
+          let a = alloca(ctx.builder, ctx.llvmCtx.f64(), vname)
+          ctx.pendingLocals[vname] = a
+
+    let v = ctx.codegenBody(body)
+    if not blockTerminated(ctx):
+      discard buildRet(ctx.builder, v)
+  finally:
+    ctx.popScope()
+    ctx.pendingLocals = savedPending
+    ctx.currentFn = savedFn
+    ctx.inDefBody = savedInDef
+    if not savedBuilder.isNil:
+      positionBuilderAtEnd(ctx.builder, savedBuilder)
+
+proc codegenDef*(ctx: Context, node: DefNode): LLVMValueRef =
+  let name = node.name.lexeme
+  if ctx.externs.hasKey(name):
+    node.name.pos.newError("redefinition of '" & name & "' (already an extern)")
+  if ctx.funcs.hasKey(name):
+    node.name.pos.newError("redefinition of '" & name & "' (already a function)")
+  if not ctx.lookupVar(name).isNil:
+    node.name.pos.newError("redefinition of '" & name & "' (already a variable)")
+
+  var params = newSeq[LLVMTypeRef](node.args.len)
+  for i in 0 ..< node.args.len:
+    params[i] = ctx.llvmCtx.f64()
+
+  let (fn, entryBB) = createFunction(ctx.module, ctx.llvmCtx, name, ctx.llvmCtx.f64(), params)
+  ctx.funcs[name] = fn
+
+  try:
+    ctx.genFuncBody(fn, entryBB, node.args, node.body, isTopLevel = false)
+  except CatchableError:
+    ctx.funcs.del(name)
+    deleteFunction(fn)
+    raise
+  result = constReal(ctx.llvmCtx.f64(), NaN)
+
+proc codegenFunction*(ctx: Context, name: string, body: BlockNode, isTopLevel: bool = true): LLVMValueRef =
+  let (fn, entryBB) = createFunction(ctx.module, ctx.llvmCtx, name, ctx.llvmCtx.f64(), [])
+  try:
+    ctx.genFuncBody(fn, entryBB, @[], body, isTopLevel)
     let (ok, verr) = verifyModule(ctx.module)
     if not ok:
       newError(0, "invalid IR: " & verr)
     result = fn
-  finally:
-    ctx.currentFn = LLVMValueRef(nil)
+  except CatchableError:
+    deleteFunction(fn)
+    raise

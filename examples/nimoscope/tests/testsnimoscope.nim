@@ -311,6 +311,36 @@ suite "parser":
     let b = parse("for i = 0; i < 3; i = i + 1; { print(i); }")
     check ForNode(b.body[0]).body.kind == nkBlock
 
+  test "parse def":
+    let b = parse("def foo(a) a;")
+    check b.body[0].kind == nkDef
+    let d = DefNode(b.body[0])
+    check d.name.lexeme == "foo"
+    check d.args.len == 1
+    check d.args[0].lexeme == "a"
+
+  test "parse def no args":
+    let b = parse("def foo() 1;")
+    check DefNode(b.body[0]).args.len == 0
+
+  test "parse return":
+    let b = parse("def foo() return 1;")
+    check ReturnNode(DefNode(b.body[0]).body).kind == nkReturn
+
+  test "parse def with block":
+    let b = parse("def foo(a) { return a; }")
+    check DefNode(b.body[0]).body.kind == nkBlock
+
+  test "parse return no value":
+    let b = parse("def f() return;")
+    let r = ReturnNode(DefNode(b.body[0]).body)
+    check r.value.isNil
+
+  test "parse return with value":
+    let b = parse("def f() return 1;")
+    let r = ReturnNode(DefNode(b.body[0]).body)
+    check not r.value.isNil
+
 proc ir(src: string): string =
   let ctx = codegen.newContext()
   discard codegenFunction(ctx, "entry", parse(src))
@@ -417,11 +447,57 @@ suite "codegen":
     let s = ir("for i = 0; i < 3; i = i + 1; print(i);")
     check "br i1" in s
 
+  test "def emits function":
+    let s = ir("def foo(a) a;")
+    check "define double @foo(double" in s
+
+  test "def with params":
+    let s = ir("def add(a, b) a + b;")
+    check "define double @add(double" in s
+
+  test "return emits ret":
+    let s = ir("def foo(a) return a;")
+    check "ret double" in s
+
+  test "redefinition of extern":
+    expect CodegenError:
+      discard ir("extern foo(a); def foo(a) a;")
+
+  test "redefinition of def":
+    expect CodegenError:
+      discard ir("def foo() 1; def foo() 2;")
+
+  test "def shadows variable":
+    expect CodegenError:
+      discard ir("x = 1; def x() 2;")
+
+  test "return outside def":
+    expect CodegenError:
+      discard ir("return 1;")
+
+  test "call undefined":
+    expect CodegenError:
+      discard ir("nope();")
+
+  test "return no value emits nan":
+    let s = ir("def f() return;")
+    check "ret double" in s
+    check "qnan" in s
+
+  test "def rollback on error":
+    let ctx = codegen.newContext()
+    expect CodegenError:
+      discard codegenFunction(ctx, "entry_a", parse("def bad() { undefined_var; }"))
+    discard codegenFunction(ctx, "entry_b", parse("def bad() 1; bad();"))
+
+var jdCounter = 0
+
 proc run(src: string): float =
   let ctx = codegen.newContext()
   discard codegenFunction(ctx, "entry", parse(src))
-  let jctx = jit.newContext()
-  jctx.evalFunction("entry", ctx.module)
+  let jctx = jit.newContext(currentSourcePath().parentDir.parentDir / "libruntime.so")
+  inc jdCounter
+  jctx.evalFunction("entry", "test_" & $jdCounter, ctx.module)
 
 suite "jit":
 
@@ -462,13 +538,13 @@ suite "jit":
     let (ok, err) = jitLoadPlatformDynamicLibrary(jctx.jit, libm)
     check ok
     check err == ""
-    check jctx.evalFunction("entry", ctx.module) == 1.0
+    check jctx.evalFunction("entry", "test_" & $jdCounter, ctx.module) == 1.0
 
   test "print via runtime.so":
-    let cctx = codegen.newContext()
-    discard codegenFunction(cctx, "entry", parse("print(42);"))
+    let ctx = codegen.newContext()
+    discard codegenFunction(ctx, "entry", parse("print(42);"))
     let jctx = jit.newContext(currentSourcePath().parentDir.parentDir / "libruntime.so")
-    discard jctx.evalFunction("entry", cctx.module)
+    discard jctx.evalFunction("entry", "test_" & $jdCounter, ctx.module)
 
   test "if true branch":
     check run("if (1) 42; else 0;") == 42.0
@@ -582,3 +658,56 @@ s;
   test "continue outside loop errors":
     expect CodegenError:
       discard run("continue;")
+
+  test "def simple":
+    check run("def foo(a) a * 2; foo(21);") == 42.0
+
+  test "def no args":
+    check run("def foo() 42; foo();") == 42.0
+
+  test "def with return":
+    check run("def foo(a) return a + 1; foo(41);") == 42.0
+
+  test "def early return":
+    check run("def foo(a) { if a < 0 return 0; a; } foo(-5);") == 0.0
+
+  test "def fib recursive":
+    check run("def fib(a) if (a < 2) return a; else fib(a-1)+fib(a-2); fib(10);") == 55.0
+
+  test "def fact recursive":
+    check run("def fact(n) if (n <= 1) return 1; else n * fact(n - 1); fact(5);") == 120.0
+
+  test "def multiple":
+    check run("def add(a, b) a + b; def mul(a, b) a * b; add(mul(2, 3), 4);") == 10.0
+
+  test "return no value gives NaN":
+    let v = run("def f(a) { if a < 0 return; a; } f(-1);")
+    check v != v
+
+  test "return value":
+    check run("def f(a) { if a < 0 return 0; a; } f(-1);") == 0.0
+
+  test "return early":
+    check run("def f(a) { return a * 2; a + 100; } f(5);") == 10.0
+
+  test "return inside loop":
+    check run("""
+def find(n) {
+  for i = 0; i < 10; i = i + 1; {
+    if i * i == n return i;
+  }
+  return -1;
+}
+find(9);
+""") == 3.0
+
+  test "return inside nested if":
+    check run("def f(a) { if a > 0 { if a > 10 return 100; return 10; } 0; } f(50);") == 100.0
+
+  test "return outside function":
+    expect CodegenError:
+      discard run("return 1;")
+
+  test "return no value outside function":
+    expect CodegenError:
+      discard run("return;")

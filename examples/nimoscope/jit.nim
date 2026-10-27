@@ -23,12 +23,15 @@ proc newContext*(runtimePath: string = ""): Context =
       raise newException(JitError, "load " & runtimePath & ": " & lerr)
   Context(jit: jit, jd: jd)
   
-proc evalFunction*(ctx: Context, name: string, module: LLVMModuleRef): float =
-  let ir = $printModuleToString(module)
-  let err = addModuleToDylib(ctx.jit, ctx.jd, ir)
+proc evalFunction*(ctx: Context, name, jdName: string, module: LLVMModuleRef): float =
+  let (jd, err) = jitCreateJITDylib(ctx.jit, jdName)
   if err.len > 0:
-    raise newException(JitError, "addModule: " & err)
-  let (addrr, lerr) = jitLookupLinkerMangled(ctx.jit, ctx.jd, name)
+    raise newException(JitError, "createJITDylib: " & err)
+  let ir = $printModuleToString(module)
+  let merr = addModuleToDylib(ctx.jit, jd, ir)
+  if merr.len > 0:
+    raise newException(JitError, "addModule: " & merr)
+  let (addrr, lerr) = jitLookupLinkerMangled(ctx.jit, jd, name)
   if lerr.len > 0:
     raise newException(JitError, "lookup: " & lerr)
   let fn = cast[proc(): cdouble {.cdecl.}](addrr)

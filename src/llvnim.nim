@@ -1198,3 +1198,4 @@ proc LLVMOrcLLJITAddObjectFile*(J: LLVMOrcLLJITRef; JD: LLVMOrcJITDylibRef; ObjB
 proc LLVMOrcLLJITEnableDebugSupport*(J: LLVMOrcLLJITRef): LLVMErrorRef {.llvmImport.}
 
 proc LLVMGetInsertBlock*(Builder: LLVMBuilderRef): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMDeleteFunction*(Fn: LLVMValueRef) {.llvmImport.}
