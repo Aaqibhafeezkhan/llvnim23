@@ -10,10 +10,27 @@ type
     tkStar
     tkSlash
 
+    tkGT
+    tkLT
+    tkGTE
+    tkLTE
+    tkEQ
+    tkNEQ
+    tkAnd
+    tkOr
+
     tkEquals
+    tkComma
 
     tkLParen
     tkRParen
+    tkRBrace
+    tkLBrace
+
+    tkExtern
+    tkIf
+    tkElif
+    tkElse
 
     tkEOS
 
@@ -49,12 +66,36 @@ proc getTok*(col: var int, text: string): Token =
   of '-': result = Token(kind: tkMinus,  lexeme: "-", pos: start)
   of '*': result = Token(kind: tkStar,   lexeme: "*", pos: start)
   of '/': result = Token(kind: tkSlash,  lexeme: "/", pos: start)
-  of '=': result = Token(kind: tkEquals, lexeme: "=", pos: start)
+  of '=':
+    if col < text.len and text[col] == '=':
+      inc col
+      result = Token(kind: tkEQ, lexeme: "==", pos: start)
+    else:
+      result = Token(kind: tkEquals, lexeme: "=", pos: start)
+  of '!':
+    if col < text.len and text[col] == '=':
+      inc col
+      result = Token(kind: tkNEQ, lexeme: "!=", pos: start)
+    else:
+      newError("unknown character '!', did you mean '!='?", start)
+  of '<':
+    if col < text.len and text[col] == '=':
+      inc col
+      result = Token(kind: tkLTE, lexeme: "<=", pos: start)
+    else:
+      result = Token(kind: tkLT, lexeme: "<", pos: start)
+  of '>':
+    if col < text.len and text[col] == '=':
+      inc col
+      result = Token(kind: tkGTE, lexeme: ">=", pos: start)
+    else:
+      result = Token(kind: tkGT, lexeme: ">", pos: start)
   of ';': result = Token(kind: tkEOS,    lexeme: ";", pos: start)
-  of '(': 
-    result = Token(kind: tkLParen, lexeme: "(", pos: start)
-  of ')': 
-    result = Token(kind: tkRParen, lexeme: ")", pos: start)
+  of ',': result = Token(kind: tkComma,  lexeme: ",", pos: start)
+  of '(': result = Token(kind: tkLParen, lexeme: "(", pos: start)
+  of ')': result = Token(kind: tkRParen, lexeme: ")", pos: start)
+  of '{': result = Token(kind: tkLBrace, lexeme: "{", pos: start)
+  of '}': result = Token(kind: tkRBrace, lexeme: "}", pos: start)
   of '0'..'9', '.':
     var dots = 0
     var digits = 0
@@ -81,7 +122,17 @@ proc getTok*(col: var int, text: string): Token =
     while col < text.len and text[col] in {'a'..'z', 'A'..'Z', '0'..'9', '_'}:
       inc col
 
-    result = Token(kind: tkIdent, lexeme: text[start ..< col], pos: start)
+    let ident = text[start ..< col]
+
+    result = Token(kind: 
+      if ident   == "extern": tkExtern
+      elif ident == "if":     tkIf
+      elif ident == "elif":   tkElif
+      elif ident == "else":   tkElse
+      elif ident == "and": tkAnd
+      elif ident == "or":  tkOr
+      else: tkIdent, 
+    lexeme: ident, pos: start)
   else:
     newError("Unknown character: " & $c, start)
 
@@ -94,9 +145,24 @@ proc mean*(k: TokenKind): string =
   of tkMinus:  "minus operator '-'"
   of tkStar:   "star operator '*'"
   of tkSlash:  "slash operator '/'"
+  of tkGT:     "greater-than operator '>'"
+  of tkLT:     "less-than operator '<'"
+  of tkGTE:    "greater-or-equal operator '>='"
+  of tkLTE:    "less-or-equal operator '<='"
+  of tkEQ:     "equality operator '=='"
+  of tkNEQ:    "inequality operator '!='"
+  of tkAnd:    "operator 'and'"
+  of tkOr:     "operator 'or'"
   of tkEquals: "equals operator '='"
+  of tkComma:  "comma ','"
   of tkLParen: "left parenthesis '('"
   of tkRParen: "right parenthesis ')'"
+  of tkLBrace: "left brace '{'"
+  of tkRBrace: "right brace '}'"
+  of tkExtern: "keyword 'extern'"
+  of tkIf:     "keyword 'if'"
+  of tkElif:   "keyword 'elif'"
+  of tkElse:   "keyword 'else'"
   of tkEOS:    "end of statement ';'"
 
 proc mean*(t: Token): string =

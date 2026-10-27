@@ -7,7 +7,7 @@ type
 
   JitError* = object of CatchableError
 
-proc newContext*(): Context =
+proc newContext*(runtimePath: string = ""): Context =
   discard LLVMInitializeNativeTarget()
   discard LLVMInitializeNativeAsmParser()
   discard LLVMInitializeNativeAsmPrinter()
@@ -17,8 +17,12 @@ proc newContext*(): Context =
   let (jd, err2) = jitCreateJITDylib(jit, "main")
   if err2.len > 0:
     raise newException(JitError, "createJITDylib: " & err2)
+  if runtimePath.len > 0:
+    let (ok, lerr) = jitLoadPlatformDynamicLibrary(jit, runtimePath)
+    if not ok:
+      raise newException(JitError, "load " & runtimePath & ": " & lerr)
   Context(jit: jit, jd: jd)
-
+  
 proc evalFunction*(ctx: Context, name: string, module: LLVMModuleRef): float =
   let ir = $printModuleToString(module)
   let err = addModuleToDylib(ctx.jit, ctx.jd, ir)

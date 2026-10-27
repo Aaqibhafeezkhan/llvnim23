@@ -1,9 +1,10 @@
 import lexer
-import std/strutils
+import std/[strutils, sequtils]
 
 type
   NodeKind* = enum
     nkNumber, nkUnary, nkBinary, nkIdent, nkBlock
+    nkExtern, nkCall, nkBranch
 
   Node* = ref object of RootObj
     kind*: NodeKind
@@ -27,6 +28,20 @@ type
   BlockNode* = ref object of Node
     body*: seq[Node]
 
+  ExternNode* = ref object of Node
+    name*: Token
+    args*: seq[Token]
+
+  CallNode* = ref object of Node
+    name*: Token
+    args*: seq[Node]
+
+  BranchNode* = ref object of Node
+    cond*: Node
+    body*: Node
+    elifs*: seq[(Node, Node)]
+    elseBody*: Node
+
 proc `$`*(n: Node): string =
   case n.kind
   of nkNumber: $NumberNode(n).value
@@ -39,6 +54,22 @@ proc `$`*(n: Node): string =
     var parts: seq[string]
     for s in BlockNode(n).body: parts.add $s
     "{" & parts.join("; ") & "}"
+  of nkExtern:
+    let e = ExternNode(n)
+    "extern " & $e.name.lexeme & "(" & e.args.mapIt(it.lexeme).join(", ") & ")"
+  of nkCall: 
+    let c = CallNode(n)
+    var parts: seq[string]
+    for s in c.args: parts.add $s
+    c.name.lexeme & "(" & parts.join(", ") & ")"
+  of nkBranch:
+    let br = BranchNode(n)
+    result = "if " & $br.cond & " " & $br.body
+    for (c, b) in br.elifs:
+      result.add " elif " & $c & " " & $b
+    if br.elseBody != nil:
+      result.add " else " & $br.elseBody
+    return
 
 proc newNumberNode*(token: Token, value: float): NumberNode =
   NumberNode(kind: nkNumber, token: token, value: value)
@@ -54,3 +85,12 @@ proc newIdentNode*(token: Token): IdentNode =
 
 proc newBlockNode*(token: Token, body: seq[Node]): BlockNode =
   BlockNode(kind: nkBlock, token: token, body: body)
+
+proc newExternNode*(token: Token, name: Token, args: seq[Token]): ExternNode =
+  ExternNode(kind: nkExtern, token: token, name: name, args: args)
+
+proc newCallNode*(token: Token, name: Token, args: seq[Node]): CallNode =
+  CallNode(kind: nkCall, token: token, name: name, args: args)
+
+proc newBranchNode*(token: Token, cond: Node, body: Node, elifs: seq[(Node, Node)], elseBody: Node): BranchNode =
+  BranchNode(kind: nkBranch, token: token, cond: cond, body: body, elifs: elifs, elseBody: elseBody)
