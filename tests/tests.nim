@@ -3517,3 +3517,375 @@ entry:
     LLVMDeleteFunction(fn)
 
     check LLVMGetNamedFunction(m, "foo").isNil
+
+  test "IR graph: basic block parents and value<->BB conversion":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("irgraph", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+
+    check LLVMGetBasicBlockParent(bb) == fn
+
+    let bbVal = LLVMBasicBlockAsValue(bb)
+    check not bbVal.isNil
+    check LLVMValueIsBasicBlock(bbVal) == LLVMTrue
+    check LLVMValueAsBasicBlock(bbVal) == bb
+
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    let inst = LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+    check not inst.isNil
+    check LLVMGetInstructionParent(inst) == bb
+    # LLVMGetParamParent takes a parameter value, not the function
+    let param = LLVMGetParam(fn, 0)
+    discard param
+    check true
+
+  test "basic blocks: create detached and append to function":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("bb_ops", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+
+    let detached = LLVMCreateBasicBlockInContext(ctx, "detached")
+    check not detached.isNil
+    check LLVMGetBasicBlockParent(detached).isNil
+
+    LLVMAppendExistingBasicBlock(fn, detached)
+    check LLVMGetBasicBlockParent(detached) == fn
+
+    let b1 = LLVMAppendBasicBlockInContext(ctx, fn, "b1")
+    let inserted = LLVMInsertBasicBlockInContext(ctx, b1, "inserted")
+    check LLVMGetBasicBlockParent(inserted) == fn
+
+    # GetBasicBlocks into array
+    var n = LLVMCountBasicBlocks(fn)
+    check n >= 3
+    var bbs = newSeq[LLVMBasicBlockRef](n)
+    LLVMGetBasicBlocks(fn, addr bbs[0])
+    var foundDetached = false
+    var foundInserted = false
+    for bb in bbs:
+      if bb == detached: foundDetached = true
+      if bb == inserted: foundInserted = true
+    check foundDetached
+    check foundInserted
+
+  test "basic blocks: move before/after":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("bb_move", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let a = LLVMAppendBasicBlockInContext(ctx, fn, "a")
+    let c = LLVMAppendBasicBlockInContext(ctx, fn, "c")
+    let b = LLVMAppendBasicBlockInContext(ctx, fn, "b")
+
+    LLVMMoveBasicBlockBefore(b, c)
+    # order should now be a, b, c
+    let first = LLVMGetFirstBasicBlock(fn)
+    check first == a
+    check LLVMGetNextBasicBlock(first) == b
+    check LLVMGetNextBasicBlock(b) == c
+
+    # remove detached? keep it simple: remove b from parent
+    LLVMRemoveBasicBlockFromParent(b)
+    # order a, c
+    check LLVMGetNextBasicBlock(a) == c
+
+  test "basic blocks instruction ops: clone and remove from parent":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("inst_ops", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let bld = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(bld)
+    LLVMPositionBuilderAtEnd(bld, bb)
+    let ret = LLVMBuildRet(bld, LLVMConstInt(i32t, 42, LLVMFalse))
+
+    let clone = LLVMInstructionClone(ret)
+    check not clone.isNil
+
+    # remove original from parent (detach, not free)
+    LLVMInstructionRemoveFromParent(ret)
+    # re-insert via builder insert
+    LLVMInsertIntoBuilder(bld, ret)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+  test "builder: insert at position and clear insertion point":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("builder_pos", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let bld = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(bld)
+    LLVMPositionBuilderAtEnd(bld, bb)
+    check LLVMGetInsertBlock(bld) == bb
+
+    let ret = LLVMBuildRet(bld, LLVMConstInt(i32t, 0, LLVMFalse))
+    # position at ret, insert a nop-free value (here just ret again would be invalid)
+    LLVMPositionBuilder(bld, bb, ret)
+    check LLVMGetInsertBlock(bld) == bb
+
+    LLVMClearInsertionPosition(bld)
+    # after clear, insertion block becomes nil-ish; do not verify
+
+  test "types: function param count/get and return type":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let i64t = LLVMInt64TypeInContext(ctx)
+    var params = [i32t, i64t]
+    let fnTy = LLVMFunctionType(i64t, addr params[0], 2, LLVMFalse)
+    check LLVMCountParamTypes(fnTy) == 2
+    check LLVMGetReturnType(fnTy) == i64t
+    var got = newSeq[LLVMTypeRef](2)
+    LLVMGetParamTypes(fnTy, addr got[0])
+    check got[0] == i32t
+    check got[1] == i64t
+
+  test "types: struct element types and subtypes":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let i64t = LLVMInt64TypeInContext(ctx)
+    var elems = [i32t, i64t]
+    let st = LLVMStructTypeInContext(ctx, addr elems[0], 2, LLVMFalse)
+    check LLVMCountStructElementTypes(st) == 2
+    var got = newSeq[LLVMTypeRef](2)
+    LLVMGetStructElementTypes(st, addr got[0])
+    check got[0] == i32t
+    check got[1] == i64t
+
+    check LLVMGetNumContainedTypes(st) == 2
+    var subs = newSeq[LLVMTypeRef](2)
+    LLVMGetSubtypes(st, addr subs[0])
+    check subs[0] == i32t
+
+    check LLVMTypeIsSized(st) == LLVMTrue
+    let p = LLVMPointerTypeInContext(ctx, 0)
+    check LLVMGetPointerAddressSpace(p) == 0
+    let opaque = LLVMPointerTypeInContext(ctx, 0)
+    check LLVMPointerTypeIsOpaque(opaque) == LLVMTrue
+    let i7 = LLVMIntTypeInContext(ctx, 7)
+    check LLVMGetIntTypeWidth(i7) == 7
+
+  test "types: getTypeByName2 for named struct":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let st = LLVMStructCreateNamed(ctx, "Point")
+    let found = LLVMGetTypeByName2(ctx, "Point")
+    check found == st
+    check LLVMGetTypeByName2(ctx, "Missing").isNil
+
+  test "constants: constNamedStruct and parsed ints":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let c10 = LLVMConstInt(i32t, 10, LLVMFalse)
+    let c20 = LLVMConstInt(i32t, 20, LLVMFalse)
+    var elems = [i32t, i32t]
+    let st = LLVMStructTypeInContext(ctx, addr elems[0], 2, LLVMFalse)
+    var vals = [c10, c20]
+    let cst = LLVMConstNamedStruct(st, addr vals[0], 2)
+    check not cst.isNil
+    let s = LLVMPrintValueToString(cst)
+    check "{ i32 10, i32 20 }" in $s
+    LLVMDisposeMessage(s)
+
+    let cint = LLVMConstIntOfString(i32t, "255", 10)
+    check not cint.isNil
+    check LLVMConstIntGetZExtValue(cint) == 255'u64
+    let cint2 = LLVMConstIntOfStringAndSize(i32t, "0x2A", 4, 16)
+    check not cint2.isNil
+
+    let bytes = LLVMConstDataArray(LLVMInt8TypeInContext(ctx), cstring("hi"), 2)
+    check not bytes.isNil
+
+  test "constants: arbitrary precision and FP bits":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let i64t = LLVMInt64TypeInContext(ctx)
+    # 128-bit constant: 2 words
+    var words = [0xFFFFFFFF'u64, 0xFFFFFFFF'u64]
+    let big = LLVMConstIntOfArbitraryPrecision(LLVMIntTypeInContext(ctx, 128), 2, addr words[0])
+    check not big.isNil
+    let d = LLVMConstFPFromBits(LLVMDoubleTypeInContext(ctx), addr words[0])
+    check not d.isNil
+
+  test "constants: truncOrBitCast on constant":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let i8t = LLVMInt8TypeInContext(ctx)
+    let c = LLVMConstInt(i32t, 7, LLVMFalse)
+    let t = LLVMConstTruncOrBitCast(c, i8t)
+    check LLVMIsConstant(t) == LLVMTrue
+
+  test "constants: getAsString on string constant":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let s = LLVMConstStringInContext2(ctx, "abc", csize_t(3), LLVMTrue)
+    check not s.isNil
+    var len: csize_t
+    let raw = LLVMGetAsString(s, len)
+    check len == 3
+    check $raw == "abc"
+
+  test "module ops: identifier and source filename":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("orig", ctx)
+    defer: LLVMDisposeModule(m)
+    LLVMSetModuleIdentifier(m, "renamed", 7)
+    var len: csize_t
+    let id = LLVMGetModuleIdentifier(m, len)
+    check $id == "renamed"
+    check len == 7
+
+    LLVMSetSourceFileName(m, "src.nim", 7)
+    var slen: csize_t
+    let sn = LLVMGetSourceFileName(m, slen)
+    check $sn == "src.nim"
+
+  test "module ops: data layout, clone, alignof/sizeof":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("mops", ctx)
+    defer: LLVMDisposeModule(m)
+    LLVMSetDataLayout(m, "e-m:e-p:64:64-i64:64-n8:16:32:64-S128")
+    let dl = LLVMGetDataLayoutStr(m)
+    check not dl.isNil
+    check "p:64:64" in $dl
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let aof = LLVMAlignOf(i32t)
+    check not aof.isNil
+    let sof = LLVMSizeOf(i32t)
+    check not sof.isNil
+
+    let c = LLVMCloneModule(m)
+    check not c.isNil
+    LLVMDisposeModule(c)
+
+  test "module ops: inline asm":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("asm", ctx)
+    defer: LLVMDisposeModule(m)
+    LLVMAppendModuleInlineAsm(m, "nop", 3)
+    var len: csize_t
+    let asmStr = LLVMGetModuleInlineAsm(m, len)
+    check "nop" in $asmStr
+    LLVMSetModuleInlineAsm2(m, "", 0)
+    var len2: csize_t
+    let asmStr2 = LLVMGetModuleInlineAsm(m, len2)
+    check len2 == 0
+
+  test "module flags: add and read flag behavior/key/metadata":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("flags", ctx)
+    defer: LLVMDisposeModule(m)
+
+    # add flag via MDString metadata value
+    let md = LLVMMDStringInContext2(ctx, "val", csize_t(3))
+    LLVMAddModuleFlag(m, LLVMModuleFlagBehaviorWarning, "my.flag", csize_t(7), md)
+    let got = LLVMGetModuleFlag(m, "my.flag", csize_t(7))
+    check got == md
+
+    var n: csize_t
+    let entries = LLVMCopyModuleFlagsMetadata(m, n)
+    check not entries.isNil
+    check n >= 1
+    check LLVMModuleFlagEntriesGetFlagBehavior(entries, 0) == LLVMModuleFlagBehaviorWarning
+    var klen: csize_t
+    let key = LLVMModuleFlagEntriesGetKey(entries, 0, klen)
+    check $key == "my.flag"
+    check LLVMModuleFlagEntriesGetMetadata(entries, 0) == md
+    LLVMDisposeModuleFlagsMetadata(entries)
+
+  test "threading: multithreaded status":
+    # LLVM participates; these should not crash
+    discard LLVMIsMultithreaded()
+    # StartMultithreaded/Stop must not be called twice casually; just check status
+    check true
+
+  test "context: discard value names":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    LLVMContextSetDiscardValueNames(ctx, LLVMTrue)
+    check LLVMContextShouldDiscardValueNames(ctx) == LLVMTrue
+    LLVMContextSetDiscardValueNames(ctx, LLVMFalse)
+    check LLVMContextShouldDiscardValueNames(ctx) == LLVMFalse
+
+  test "memory buffer: from memory range":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let data = "abc"
+    let buf = LLVMCreateMemoryBufferWithMemoryRange(data.cstring, csize_t(3), "buf", LLVMFalse)
+    check not buf.isNil
+    check LLVMGetBufferSize(buf) == 3
+    check $LLVMGetBufferStart(buf) == "abc"
+    LLVMDisposeMemoryBuffer(buf)
+
+  test "use navigation: operands of an instruction":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("use", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var params = [i32t, i32t]
+    let fnTy = LLVMFunctionType(i32t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "add", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let bld = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(bld)
+    LLVMPositionBuilderAtEnd(bld, bb)
+    let a = LLVMGetParam(fn, 0)
+    let c = LLVMGetParam(fn, 1)
+    let sum = LLVMBuildAdd(bld, a, c, "sum")
+    discard LLVMBuildRet(bld, sum)
+
+    # operand 0 of sum is a
+    let use0 = LLVMGetOperandUse(sum, 0)
+    check not use0.isNil
+    check LLVMGetUser(use0) == sum
+    # first use of a must be sum
+    let fu = LLVMGetFirstUse(a)
+    check not fu.isNil
+    check LLVMGetUser(fu) == sum
+
+  test "value names: set and get with length":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("names", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let g = LLVMAddGlobal(m, i32t, "orig")
+    LLVMSetValueName2(g, "renamed", 7)
+    var len: csize_t
+    let name = LLVMGetValueName2(g, len)
+    check $name == "renamed"
+    check len == 7

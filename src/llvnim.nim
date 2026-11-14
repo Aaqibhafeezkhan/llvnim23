@@ -1213,3 +1213,137 @@ proc LLVMOrcLLJITEnableDebugSupport*(J: LLVMOrcLLJITRef): LLVMErrorRef {.llvmImp
 
 proc LLVMGetInsertBlock*(Builder: LLVMBuilderRef): LLVMBasicBlockRef {.llvmImport.}
 proc LLVMDeleteFunction*(Fn: LLVMValueRef) {.llvmImport.}
+
+# ---------------- Use / user navigation ----------------
+
+type
+  LLVMUseRef* = distinct pointer
+
+definePointerOps(LLVMUseRef)
+
+proc LLVMGetFirstUse*(Val: LLVMValueRef): LLVMUseRef {.llvmImport.}
+proc LLVMGetNextUse*(U: LLVMUseRef): LLVMUseRef {.llvmImport.}
+proc LLVMGetUser*(U: LLVMUseRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetOperandUse*(Val: LLVMValueRef; Index: cuint): LLVMUseRef {.llvmImport.}
+
+# ---------------- IR-graph parents ----------------
+
+proc LLVMGetBasicBlockParent*(BB: LLVMBasicBlockRef): LLVMValueRef {.llvmImport.}
+  ## Returns the function containing BB, or nil if detached.
+
+proc LLVMGetInstructionParent*(Inst: LLVMValueRef): LLVMBasicBlockRef {.llvmImport.}
+  ## Returns the basic block containing Inst, or nil if detached.
+
+proc LLVMGetParamParent*(Inst: LLVMValueRef): LLVMValueRef {.llvmImport.}
+
+# ---------------- basic block management ----------------
+
+proc LLVMCreateBasicBlockInContext*(C: LLVMContextRef; Name: cstring): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMAppendExistingBasicBlock*(Fn: LLVMValueRef; BB: LLVMBasicBlockRef) {.llvmImport.}
+proc LLVMInsertBasicBlockInContext*(C: LLVMContextRef; BB: LLVMBasicBlockRef; Name: cstring): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMGetBasicBlocks*(Fn: LLVMValueRef; BasicBlocks: ptr LLVMBasicBlockRef) {.llvmImport.}
+proc LLVMDeleteBasicBlock*(BB: LLVMBasicBlockRef) {.llvmImport.}
+proc LLVMRemoveBasicBlockFromParent*(BB: LLVMBasicBlockRef) {.llvmImport.}
+proc LLVMMoveBasicBlockBefore*(BB: LLVMBasicBlockRef; MovePos: LLVMBasicBlockRef) {.llvmImport.}
+proc LLVMMoveBasicBlockAfter*(BB: LLVMBasicBlockRef; MovePos: LLVMBasicBlockRef) {.llvmImport.}
+
+proc LLVMValueAsBasicBlock*(Val: LLVMValueRef): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMBasicBlockAsValue*(BB: LLVMBasicBlockRef): LLVMValueRef {.llvmImport.}
+proc LLVMValueIsBasicBlock*(Val: LLVMValueRef): LLVMBool {.llvmImport.}
+
+# ---------------- instruction ops ----------------
+
+proc LLVMInstructionClone*(Inst: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMInstructionRemoveFromParent*(Inst: LLVMValueRef) {.llvmImport.}
+
+# ---------------- builder positioning ----------------
+
+proc LLVMPositionBuilder*(Builder: LLVMBuilderRef; Block: LLVMBasicBlockRef; Instr: LLVMValueRef) {.llvmImport.}
+proc LLVMInsertIntoBuilder*(Builder: LLVMBuilderRef; Instr: LLVMValueRef) {.llvmImport.}
+proc LLVMInsertIntoBuilderWithName*(Builder: LLVMBuilderRef; Instr: LLVMValueRef; Name: cstring) {.llvmImport.}
+proc LLVMClearInsertionPosition*(Builder: LLVMBuilderRef) {.llvmImport.}
+
+# ---------------- types: function/struct/subtypes ----------------
+
+proc LLVMGetTypeByName2*(C: LLVMContextRef; Name: cstring): LLVMTypeRef {.llvmImport.}
+proc LLVMCountParamTypes*(FunctionTy: LLVMTypeRef): cuint {.llvmImport.}
+proc LLVMGetParamTypes*(FunctionTy: LLVMTypeRef; Dest: ptr LLVMTypeRef) {.llvmImport.}
+proc LLVMGetReturnType*(FunctionTy: LLVMTypeRef): LLVMTypeRef {.llvmImport.}
+proc LLVMCountStructElementTypes*(StructTy: LLVMTypeRef): cuint {.llvmImport.}
+proc LLVMGetStructElementTypes*(StructTy: LLVMTypeRef; Dest: ptr LLVMTypeRef) {.llvmImport.}
+proc LLVMGetNumContainedTypes*(Tp: LLVMTypeRef): cuint {.llvmImport.}
+proc LLVMGetSubtypes*(Tp: LLVMTypeRef; Arr: ptr LLVMTypeRef) {.llvmImport.}
+proc LLVMTypeIsSized*(Ty: LLVMTypeRef): LLVMBool {.llvmImport.}
+proc LLVMGetPointerAddressSpace*(PointerTy: LLVMTypeRef): cuint {.llvmImport.}
+proc LLVMPointerTypeIsOpaque*(Ty: LLVMTypeRef): LLVMBool {.llvmImport.}
+proc LLVMGetIntTypeWidth*(IntegerTy: LLVMTypeRef): cuint {.llvmImport.}
+
+# ---------------- constants ----------------
+
+proc LLVMConstNamedStruct*(StructTy: LLVMTypeRef; ConstantVals: ptr LLVMValueRef; Count: cuint): LLVMValueRef {.llvmImport.}
+proc LLVMConstDataArray*(ElementTy: LLVMTypeRef; Data: cstring; SizeInBytes: csize_t): LLVMValueRef {.llvmImport.}
+proc LLVMConstIntOfString*(IntTy: LLVMTypeRef; Text: cstring; Radix: uint8): LLVMValueRef {.llvmImport.}
+proc LLVMConstIntOfStringAndSize*(IntTy: LLVMTypeRef; Text: cstring; SLen: cuint; Radix: uint8): LLVMValueRef {.llvmImport.}
+proc LLVMConstIntOfArbitraryPrecision*(IntTy: LLVMTypeRef; NumWords: cuint; Words: ptr uint64): LLVMValueRef {.llvmImport.}
+proc LLVMConstFPFromBits*(Ty: LLVMTypeRef; N: ptr uint64): LLVMValueRef {.llvmImport.}
+proc LLVMConstTruncOrBitCast*(ConstantVal: LLVMValueRef; ToType: LLVMTypeRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetAsString*(c: LLVMValueRef; Length: var csize_t): cstring {.llvmImport.}
+  ## Returns the raw bytes of a constant data sequential value. The caller
+  ## must not free the returned string.
+
+# ---------------- module ops ----------------
+
+proc LLVMGetModuleIdentifier*(M: LLVMModuleRef; Len: var csize_t): cstring {.llvmImport.}
+proc LLVMSetModuleIdentifier*(M: LLVMModuleRef; Ident: cstring; Len: csize_t) {.llvmImport.}
+proc LLVMGetSourceFileName*(M: LLVMModuleRef; Len: var csize_t): cstring {.llvmImport.}
+proc LLVMSetSourceFileName*(M: LLVMModuleRef; Name: cstring; Len: csize_t) {.llvmImport.}
+proc LLVMGetDataLayoutStr*(M: LLVMModuleRef): cstring {.llvmImport.}
+  ## Preferred over the deprecated LLVMGetDataLayout.
+
+proc LLVMGetModuleInlineAsm*(M: LLVMModuleRef; Len: var csize_t): cstring {.llvmImport.}
+proc LLVMSetModuleInlineAsm2*(M: LLVMModuleRef; Asm: cstring; Len: csize_t) {.llvmImport.}
+proc LLVMAppendModuleInlineAsm*(M: LLVMModuleRef; Asm: cstring; Len: csize_t) {.llvmImport.}
+proc LLVMCloneModule*(M: LLVMModuleRef): LLVMModuleRef {.llvmImport.}
+proc LLVMBlockAddress*(F: LLVMValueRef; BB: LLVMBasicBlockRef): LLVMValueRef {.llvmImport.}
+
+proc LLVMAlignOf*(Ty: LLVMTypeRef): LLVMValueRef {.llvmImport.}
+proc LLVMSizeOf*(Ty: LLVMTypeRef): LLVMValueRef {.llvmImport.}
+
+# ---------------- module flags (metadata) ----------------
+
+type
+  LLVMModuleFlagBehavior* {.size: sizeof(cint).} = enum
+    LLVMModuleFlagBehaviorError = 0
+    LLVMModuleFlagBehaviorWarning = 1
+    LLVMModuleFlagBehaviorRequire = 2
+    LLVMModuleFlagBehaviorOverride = 3
+    LLVMModuleFlagBehaviorAppend = 4
+    LLVMModuleFlagBehaviorAppendUnique = 5
+
+  LLVMModuleFlagEntryRef* = distinct pointer
+
+definePointerOps(LLVMModuleFlagEntryRef)
+
+proc LLVMCopyModuleFlagsMetadata*(M: LLVMModuleRef; Len: var csize_t): LLVMModuleFlagEntryRef {.llvmImport.}
+  ## Free the result with LLVMDisposeModuleFlagsMetadata.
+proc LLVMDisposeModuleFlagsMetadata*(Entries: LLVMModuleFlagEntryRef) {.llvmImport.}
+proc LLVMModuleFlagEntriesGetFlagBehavior*(Entries: LLVMModuleFlagEntryRef; Index: cuint): LLVMModuleFlagBehavior {.llvmImport.}
+proc LLVMModuleFlagEntriesGetKey*(Entries: LLVMModuleFlagEntryRef; Index: cuint; Len: var csize_t): cstring {.llvmImport.}
+proc LLVMModuleFlagEntriesGetMetadata*(Entries: LLVMModuleFlagEntryRef; Index: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMAddModuleFlag*(M: LLVMModuleRef; Behavior: LLVMModuleFlagBehavior; Key: cstring; KeyLen: csize_t; Val: LLVMMetadataRef) {.llvmImport.}
+proc LLVMGetModuleFlag*(M: LLVMModuleRef; Key: cstring; KeyLen: csize_t): LLVMMetadataRef {.llvmImport.}
+
+# ---------------- context / threading / misc ----------------
+
+proc LLVMContextSetDiscardValueNames*(C: LLVMContextRef; Discard: LLVMBool) {.llvmImport.}
+proc LLVMContextShouldDiscardValueNames*(C: LLVMContextRef): LLVMBool {.llvmImport.}
+
+proc LLVMIsMultithreaded*(): LLVMBool {.llvmImport.}
+proc LLVMStartMultithreaded*(): LLVMBool {.llvmImport.}
+proc LLVMStopMultithreaded*() {.llvmImport.}
+proc LLVMShutdown*() {.llvmImport.}
+
+proc LLVMCreateMemoryBufferWithMemoryRange*(InputData: cstring; InputDataLength: csize_t; BufferName: cstring; RequiresNullTerminator: LLVMBool): LLVMMemoryBufferRef {.llvmImport.}
+proc LLVMCreateMemoryBufferWithSTDIN*(OutMemBuf: var LLVMMemoryBufferRef; OutMessage: var cstring): LLVMBool {.llvmImport.}
+
+proc LLVMSetValueName2*(Val: LLVMValueRef; Name: cstring; NameLen: csize_t) {.llvmImport.}
