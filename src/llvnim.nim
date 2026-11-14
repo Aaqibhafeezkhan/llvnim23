@@ -1347,3 +1347,265 @@ proc LLVMCreateMemoryBufferWithMemoryRange*(InputData: cstring; InputDataLength:
 proc LLVMCreateMemoryBufferWithSTDIN*(OutMemBuf: var LLVMMemoryBufferRef; OutMessage: var cstring): LLVMBool {.llvmImport.}
 
 proc LLVMSetValueName2*(Val: LLVMValueRef; Name: cstring; NameLen: csize_t) {.llvmImport.}
+
+# ---------------- enums for instructions/introspection ----------------
+
+type
+  LLVMOpcode* {.size: sizeof(cint).} = enum
+    ## LLVMOpcode enum. Mirrors llvm-c/Core.h opcodes.
+    ## Each value is the stable C ABI value.
+    ## (Integer values assigned explicitly to match the C enum.)
+    # Terminator
+    LLVMRet = 1
+    LLVMSwitch = 3
+    LLVMIndirectBr = 4
+    LLVMInvoke = 5
+    LLVMUnreachable = 7
+    # Binary
+    LLVMAdd = 8
+    LLVMFAdd = 9
+    LLVMSub = 10
+    LLVMFSub = 11
+    LLVMMul = 12
+    LLVMFMul = 13
+    LLVMUDiv = 14
+    LLVMSDiv = 15
+    LLVMFDiv = 16
+    LLVMURem = 17
+    LLVMSRem = 18
+    LLVMFRem = 19
+    # Logical
+    LLVMShl = 20
+    LLVMLShr = 21
+    LLVMAShr = 22
+    LLVMAnd = 23
+    LLVMOr = 24
+    LLVMXor = 25
+    # Memory
+    LLVMAlloca = 26
+    LLVMLoad = 27
+    LLVMStore = 28
+    LLVMGetElementPtr = 29
+    # Cast
+    LLVMTrunc = 30
+    LLVMZExt = 31
+    LLVMSExt = 32
+    LLVMFPToUI = 33
+    LLVMFPToSI = 34
+    LLVMUIToFP = 35
+    LLVMSIToFP = 36
+    LLVMFPTrunc = 37
+    LLVMFPExt = 38
+    LLVMPtrToInt = 39
+    LLVMIntToPtr = 40
+    LLVMBitCast = 41
+    LLVMAddrSpaceCast = 60
+    # Other
+    LLVMICmp = 42
+    LLVMFCmp = 43
+    LLVMPHI = 44
+    LLVMCall = 45
+    LLVMSelect = 46
+    LLVMUserOp1 = 47
+    LLVMUserOp2 = 48
+    LLVMVAArg = 49
+    LLVMExtractElement = 50
+    LLVMInsertElement = 51
+    LLVMShuffleVector = 52
+    LLVMExtractValue = 53
+    LLVMInsertValue = 54
+    LLVMFreeze = 68
+    # Atomic
+    LLVMFence = 55
+    LLVMAtomicCmpXchg = 56
+    LLVMAtomicRMW = 57
+    # Exceptions
+    LLVMResume = 58
+    LLVMLandingPad = 59
+    LLVMCleanupRet = 61
+    LLVMCatchRet = 62
+    LLVMCatchPad = 63
+    LLVMCleanupPad = 64
+    LLVMCatchSwitch = 65
+    LLVMFNeg = 66
+    LLVMCallBr = 67
+    LLVMUncondBr = 70
+    LLVMCondBr = 71
+    LLVMPtrToAddr = 69
+
+  LLVMValueKind* {.size: sizeof(cint).} = enum
+    LLVMArgumentValueKind = 0
+    LLVMBasicBlockValueKind = 1
+    LLVMMemoryUseValueKind = 2
+    LLVMMemoryDefValueKind = 3
+    LLVMMemoryPhiValueKind = 4
+    LLVMFunctionValueKind = 5
+    LLVMGlobalAliasValueKind = 6
+    LLVMGlobalIFuncValueKind = 7
+    LLVMGlobalVariableValueKind = 8
+    LLVMBlockAddressValueKind = 9
+    LLVMConstantExprValueKind = 10
+    LLVMConstantArrayValueKind = 11
+    LLVMConstantStructValueKind = 12
+    LLVMConstantVectorValueKind = 13
+    LLVMUndefValueValueKind = 14
+    LLVMConstantAggregateZeroValueKind = 15
+    LLVMConstantDataArrayValueKind = 16
+    LLVMConstantDataVectorValueKind = 17
+    LLVMConstantIntValueKind = 18
+    LLVMConstantByteValueKind = 19
+    LLVMConstantFPValueKind = 20
+    LLVMConstantPointerNullValueKind = 21
+    LLVMConstantTokenNoneValueKind = 22
+    LLVMMetadataAsValueValueKind = 23
+    LLVMInlineAsmValueKind = 24
+    LLVMInstructionValueKind = 25
+    LLVMPoisonValueValueKind = 26
+    LLVMConstantTargetNoneValueKind = 27
+    LLVMConstantPtrAuthValueKind = 28
+
+  LLVMVisibility* {.size: sizeof(cint).} = enum
+    LLVMDefaultVisibility = 0
+    LLVMHiddenVisibility = 1
+    LLVMProtectedVisibility = 2
+
+  LLVMDLLStorageClass* {.size: sizeof(cint).} = enum
+    LLVMDefaultStorageClass = 0
+    LLVMDLLImportStorageClass = 1
+    LLVMDLLExportStorageClass = 2
+
+  LLVMTailCallKind* {.size: sizeof(cint).} = enum
+    LLVMTailCallKindNone = 0
+    LLVMTailCallKindTail = 1
+    LLVMTailCallKindMustTail = 2
+    LLVMTailCallKindNoTail = 3
+
+# ---------------- builder: casts / null / arithmetic ----------------
+
+proc LLVMPositionBuilderBefore*(Builder: LLVMBuilderRef; Instr: LLVMValueRef) {.llvmImport.}
+  ## Positions the builder before Instr but inside its basic block.
+
+proc LLVMBuildIsNull*(Builder: LLVMBuilderRef; Val: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildIsNotNull*(Builder: LLVMBuilderRef; Val: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+
+proc LLVMBuildCast*(Builder: LLVMBuilderRef; Op: LLVMOpcode; Val: LLVMValueRef; DestTy: LLVMTypeRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildIntCast*(Builder: LLVMBuilderRef; Val: LLVMValueRef; DestTy: LLVMTypeRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildPointerCast*(Builder: LLVMBuilderRef; Val: LLVMValueRef; DestTy: LLVMTypeRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildSExtOrBitCast*(Builder: LLVMBuilderRef; Val: LLVMValueRef; DestTy: LLVMTypeRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildZExtOrBitCast*(Builder: LLVMBuilderRef; Val: LLVMValueRef; DestTy: LLVMTypeRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildTruncOrBitCast*(Builder: LLVMBuilderRef; Val: LLVMValueRef; DestTy: LLVMTypeRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildFPCast*(Builder: LLVMBuilderRef; Val: LLVMValueRef; DestTy: LLVMTypeRef; Name: cstring): LLVMValueRef {.llvmImport.}
+
+proc LLVMBuildPtrDiff2*(Builder: LLVMBuilderRef; ElemTy: LLVMTypeRef; LHS, RHS: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildStructGEP2*(Builder: LLVMBuilderRef; Ty: LLVMTypeRef; Pointer: LLVMValueRef; Idx: cuint; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildBinOp*(Builder: LLVMBuilderRef; Op: LLVMOpcode; LHS, RHS: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildAggregateRet*(Builder: LLVMBuilderRef; RetVals: ptr LLVMValueRef; N: cuint): LLVMValueRef {.llvmImport.}
+proc LLVMBuildVAArg*(Builder: LLVMBuilderRef; List: LLVMValueRef; Ty: LLVMTypeRef; Name: cstring): LLVMValueRef {.llvmImport.}
+
+proc LLVMBuildNSWAdd*(Builder: LLVMBuilderRef; LHS, RHS: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildNSWMul*(Builder: LLVMBuilderRef; LHS, RHS: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildNSWSub*(Builder: LLVMBuilderRef; LHS, RHS: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildNUWAdd*(Builder: LLVMBuilderRef; LHS, RHS: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildNUWMul*(Builder: LLVMBuilderRef; LHS, RHS: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildNUWSub*(Builder: LLVMBuilderRef; LHS, RHS: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+
+proc LLVMBuildNSWNeg*(Builder: LLVMBuilderRef; Val: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildNUWNeg*(Builder: LLVMBuilderRef; Val: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
+
+proc LLVMBuildMemCpy*(B: LLVMBuilderRef; Dst: LLVMValueRef; DstAlign: cuint; Src: LLVMValueRef; SrcAlign: cuint; Size: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMBuildMemMove*(B: LLVMBuilderRef; Dst: LLVMValueRef; DstAlign: cuint; Src: LLVMValueRef; SrcAlign: cuint; Size: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMBuildMemSet*(B: LLVMBuilderRef; Ptr, Val, Len: LLVMValueRef; Align: cuint): LLVMValueRef {.llvmImport.}
+
+# ---------------- value/instruction introspection ----------------
+
+proc LLVMGetValueKind*(Val: LLVMValueRef): LLVMValueKind {.llvmImport.}
+proc LLVMIsPoison*(Val: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMGetConstOpcode*(ConstantVal: LLVMValueRef): LLVMOpcode {.llvmImport.}
+proc LLVMGetICmpPredicate*(Inst: LLVMValueRef): LLVMIntPredicate {.llvmImport.}
+proc LLVMGetFCmpPredicate*(Inst: LLVMValueRef): LLVMRealPredicate {.llvmImport.}
+proc LLVMGetCastOpcode*(Src: LLVMValueRef; SrcIsSigned: LLVMBool; DestTy: LLVMTypeRef; DestIsSigned: LLVMBool): LLVMOpcode {.llvmImport.}
+
+proc LLVMGetDLLStorageClass*(Global: LLVMValueRef): LLVMDLLStorageClass {.llvmImport.}
+proc LLVMGetVisibility*(Global: LLVMValueRef): LLVMVisibility {.llvmImport.}
+
+proc LLVMGetNormalDest*(InvokeInst: LLVMValueRef): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMGetUnwindDest*(InvokeInst: LLVMValueRef): LLVMBasicBlockRef {.llvmImport.}
+
+proc LLVMGetSwitchDefaultDest*(SwitchInstr: LLVMValueRef): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMGetSwitchCaseValue*(SwitchInstr: LLVMValueRef; i: cuint): LLVMValueRef {.llvmImport.}
+
+proc LLVMGetClause*(LandingPad: LLVMValueRef; Idx: cuint): LLVMValueRef {.llvmImport.}
+proc LLVMGetNumClauses*(LandingPad: LLVMValueRef): cuint {.llvmImport.}
+
+proc LLVMGetIncomingBlock*(PhiNode: LLVMValueRef; Index: cuint): LLVMBasicBlockRef {.llvmImport.}
+proc LLVMGetIncomingValue*(PhiNode: LLVMValueRef; Index: cuint): LLVMValueRef {.llvmImport.}
+proc LLVMCountIncoming*(PhiNode: LLVMValueRef): cuint {.llvmImport.}
+
+proc LLVMGetNumIndices*(Inst: LLVMValueRef): cuint {.llvmImport.}
+proc LLVMGetIndices*(Inst: LLVMValueRef): ptr cuint {.llvmImport.}
+
+proc LLVMGetAtomicRMWBinOp*(AtomicRMWInst: LLVMValueRef): LLVMAtomicRMWBinOp {.llvmImport.}
+proc LLVMGetAtomicSyncScopeID*(AtomicInst: LLVMValueRef): cuint {.llvmImport.}
+proc LLVMGetOrdering*(MemoryAccessInst: LLVMValueRef): LLVMAtomicOrdering {.llvmImport.}
+proc LLVMGetVolatile*(Inst: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMGetWeak*(CmpXchgInst: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMGetExact*(DivOrShrInst: LLVMValueRef): LLVMBool {.llvmImport.}
+
+proc LLVMGetNSW*(ArithInst: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMGetNUW*(ArithInst: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMGetIsDisjoint*(Inst: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMGetNNeg*(NonNegInst: LLVMValueRef): LLVMBool {.llvmImport.}
+
+proc LLVMGetTailCallKind*(CallInst: LLVMValueRef): LLVMTailCallKind {.llvmImport.}
+proc LLVMSetTailCallKind*(CallInst: LLVMValueRef; Kind: LLVMTailCallKind) {.llvmImport.}
+proc LLVMSetTailCall*(CallInst: LLVMValueRef; IsTailCall: LLVMBool) {.llvmImport.}
+
+proc LLVMSetFunctionCallConv*(Fn: LLVMValueRef; CC: cuint) {.llvmImport.}
+proc LLVMGetFunctionCallConv*(Fn: LLVMValueRef): cuint {.llvmImport.}
+proc LLVMSetInstructionCallConv*(Instr: LLVMValueRef; CC: cuint) {.llvmImport.}
+proc LLVMGetInstructionCallConv*(Instr: LLVMValueRef): cuint {.llvmImport.}
+
+# ---------------- attributes: getters / alignment / GC ----------------
+
+proc LLVMGetAttributesAtIndex*(F: LLVMValueRef; Idx: cuint; Attrs: ptr LLVMAttributeRef) {.llvmImport.}
+proc LLVMGetAttributeCountAtIndex*(F: LLVMValueRef; Idx: cuint): cuint {.llvmImport.}
+proc LLVMIsEnumAttribute*(A: LLVMAttributeRef): LLVMBool {.llvmImport.}
+proc LLVMIsStringAttribute*(A: LLVMAttributeRef): LLVMBool {.llvmImport.}
+proc LLVMGetStringAttributeKind*(A: LLVMAttributeRef; Length: var cuint): cstring {.llvmImport.}
+proc LLVMGetStringAttributeValue*(A: LLVMAttributeRef; Length: var cuint): cstring {.llvmImport.}
+
+proc LLVMSetInstrParamAlignment*(Instr: LLVMValueRef; Idx: cuint; Align: cuint) {.llvmImport.}
+proc LLVMGetAlignment*(V: LLVMValueRef): cuint {.llvmImport.}
+
+proc LLVMSetGC*(Fn: LLVMValueRef; Name: cstring) {.llvmImport.}
+proc LLVMGetGC*(Fn: LLVMValueRef): cstring {.llvmImport.}
+
+# ---------------- debug locations ----------------
+
+proc LLVMGetCurrentDebugLocation*(Builder: LLVMBuilderRef): LLVMValueRef {.llvmImport.}
+proc LLVMSetCurrentDebugLocation*(Builder: LLVMBuilderRef; L: LLVMValueRef) {.llvmImport.}
+proc LLVMGetDebugLocLine*(Val: LLVMValueRef): cuint {.llvmImport.}
+proc LLVMGetDebugLocColumn*(Val: LLVMValueRef): cuint {.llvmImport.}
+proc LLVMGetDebugLocDirectory*(Val: LLVMValueRef; Length: var cuint): cstring {.llvmImport.}
+proc LLVMGetDebugLocFilename*(Val: LLVMValueRef; Length: var cuint): cstring {.llvmImport.}
+
+# ---------------- modules: named functions / sections / context ----------------
+
+proc LLVMGetOrInsertFunction*(M: LLVMModuleRef; Name: cstring; NameLen: csize_t; FunctionTy: LLVMTypeRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetNamedFunctionWithLength*(M: LLVMModuleRef; Name: cstring; Length: csize_t): LLVMValueRef {.llvmImport.}
+proc LLVMGetNamedGlobalWithLength*(M: LLVMModuleRef; Name: cstring; Length: csize_t): LLVMValueRef {.llvmImport.}
+
+proc LLVMGetSection*(Global: LLVMValueRef): cstring {.llvmImport.}
+proc LLVMSetSection*(Global: LLVMValueRef; Section: cstring) {.llvmImport.}
+
+proc LLVMGetModuleContext*(M: LLVMModuleRef): LLVMContextRef {.llvmImport.}
+proc LLVMPrintModuleToFile*(M: LLVMModuleRef; Filename: cstring; ErrorMessage: var cstring): LLVMBool {.llvmImport.}
+
+# ---------------- intrinsics ----------------
+
+proc LLVMGetIntrinsicID*(Fn: LLVMValueRef): cuint {.llvmImport.}
+proc LLVMLookupIntrinsicID*(Name: cstring; NameLen: csize_t): cuint {.llvmImport.}
+proc LLVMGetIntrinsicDeclaration*(Mod: LLVMModuleRef; ID: cuint; OverloadTypes: ptr LLVMTypeRef; OverloadCount: csize_t): LLVMValueRef {.llvmImport.}
+proc LLVMIntrinsicIsOverloaded*(ID: cuint): LLVMBool {.llvmImport.}
+proc LLVMIntrinsicGetType*(Ctx: LLVMContextRef; ID: cuint; OverloadTypes: ptr LLVMTypeRef; OverloadCount: csize_t): LLVMTypeRef {.llvmImport.}
+proc LLVMIntrinsicCopyOverloadedName2*(M: LLVMModuleRef; ID: cuint; OverloadTypes: ptr LLVMTypeRef; OverloadCount: csize_t; NameLength: var csize_t): cstring {.llvmImport.}

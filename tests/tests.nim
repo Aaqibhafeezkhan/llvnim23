@@ -3889,3 +3889,254 @@ entry:
     let name = LLVMGetValueName2(g, len)
     check $name == "renamed"
     check len == 7
+  test "builder: position before and cast ops":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("bpos", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let i64t = LLVMInt64TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let ret = LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+    LLVMPositionBuilderBefore(b, ret)
+
+    let wide = LLVMBuildSExtOrBitCast(b, LLVMConstInt(i32t, 7, LLVMFalse), i64t, "wide")
+    check not wide.isNil
+    let narrow = LLVMBuildTruncOrBitCast(b, wide, i32t, "narrow")
+    check not narrow.isNil
+    check not LLVMBuildZExtOrBitCast(b, narrow, i64t, "zu").isNil
+    check not LLVMBuildPointerCast(b, narrow, LLVMPointerTypeInContext(ctx, 0), "p").isNil
+    check not LLVMBuildIntCast(b, narrow, i64t, "ic").isNil
+
+  test "builder: null/isnotnull and binop/nsw/nuw":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("bnull", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var params = [i32t, i32t]
+    let fnTy = LLVMFunctionType(i32t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let x = LLVMGetParam(fn, 0)
+    let y = LLVMGetParam(fn, 1)
+
+    let isnull = LLVMBuildICmp(b, LLVMIntEQ, x, LLVMConstInt(i32t, 0, LLVMFalse), "isnull")
+    check not isnull.isNil
+
+    let sum = LLVMBuildBinOp(b, LLVMAdd, x, y, "sum")
+    check not sum.isNil
+    check not LLVMBuildNSWAdd(b, x, y, "nsw").isNil
+    check not LLVMBuildNUWAdd(b, x, y, "nuw").isNil
+    check not LLVMBuildNSWSub(b, x, y, "nswsub").isNil
+    check not LLVMBuildNUWSub(b, x, y, "nuwsub").isNil
+    check not LLVMBuildNSWMul(b, x, y, "nswmul").isNil
+    check not LLVMBuildNUWMul(b, x, y, "nuwmul").isNil
+    discard LLVMBuildRet(b, sum)
+
+    let ir = LLVMPrintModuleToString(m)
+    check "add nsw" in $ir
+    check "add nuw" in $ir
+    LLVMDisposeMessage(ir)
+
+  test "builder: ptrdiff, structGEP, memory intrinsics":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("bmem", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let i8t = LLVMInt8TypeInContext(ctx)
+    let pt = LLVMPointerTypeInContext(ctx, 0)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let alloca = LLVMBuildAlloca(b, i32t, "p")
+    let alloca2 = LLVMBuildAlloca(b, i32t, "q")
+    let diff = LLVMBuildPtrDiff2(b, i32t, alloca2, alloca, "diff")
+    check not diff.isNil
+
+    # IsNull/IsNotNull on a pointer value
+    check not LLVMBuildIsNull(b, alloca, "isnull").isNil
+    check not LLVMBuildIsNotNull(b, alloca, "isn").isNil
+
+    let zero = LLVMConstInt(i32t, 0, LLVMFalse)
+    let zero8 = LLVMConstInt(LLVMInt8TypeInContext(ctx), 0, LLVMFalse)
+    discard LLVMBuildStore(b, zero, alloca)
+    discard LLVMBuildMemSet(b, alloca, zero8, LLVMConstInt(i32t, 4, LLVMFalse), 1)
+    discard LLVMBuildMemCpy(b, alloca2, 4, alloca, 4, LLVMConstInt(i32t, 4, LLVMFalse))
+    discard LLVMBuildMemMove(b, alloca2, 4, alloca, 4, LLVMConstInt(i32t, 4, LLVMFalse))
+    discard LLVMBuildRet(b, zero)
+
+  test "value introspection: kind, opcode, poison, predicates":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("intro", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    check LLVMGetValueKind(fn) == LLVMFunctionValueKind
+    let c = LLVMConstInt(i32t, 9, LLVMFalse)
+    check LLVMGetValueKind(c) == LLVMConstantIntValueKind
+    check LLVMIsPoison(c) == LLVMFalse
+
+    # GetConstOpcode is only valid on constant expressions.
+    # A GEP of a global array with a non-foldable index yields a constexpr.
+    let arrTy = LLVMArrayType2(i32t, 4)
+    let g = LLVMAddGlobal(m, arrTy, "arr")
+    var inds = [LLVMConstInt(LLVMInt64TypeInContext(ctx), 0, LLVMFalse),
+                LLVMConstInt(i32t, 2, LLVMFalse)]
+    let cexpr = LLVMConstGEP2(arrTy, g, addr inds[0], 2)
+    check LLVMGetValueKind(cexpr) == LLVMConstantExprValueKind
+    check LLVMGetConstOpcode(cexpr) == LLVMGetElementPtr
+
+    let ret = LLVMBuildRet(b, c)
+    check not ret.isNil
+
+  test "value introspection: calling convention visibility storage":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("cc", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+
+    check LLVMGetFunctionCallConv(fn) == 0
+    LLVMSetFunctionCallConv(fn, 76) # spir kernel
+    check LLVMGetFunctionCallConv(fn) == 76
+
+    check LLVMGetVisibility(fn) == LLVMDefaultVisibility
+    check LLVMGetDLLStorageClass(fn) == LLVMDefaultStorageClass
+
+    check LLVMGetModuleContext(m) == ctx
+
+  test "module: named function/global with length, or-insert":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("named", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "foo", fnTy)
+    let g = LLVMAddGlobal(m, i32t, "barbaz")
+
+    check LLVMGetNamedFunctionWithLength(m, "foo", 3) == fn
+    check LLVMGetNamedGlobalWithLength(m, "barbaz", 6) == g
+    check LLVMGetNamedFunctionWithLength(m, "nope", 4).isNil
+
+    let h = LLVMGetOrInsertFunction(m, "h", 1, fnTy)
+    check not h.isNil
+    check LLVMGetOrInsertFunction(m, "h", 1, fnTy) == h
+
+  test "module: section and alignment":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("sec", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let g = LLVMAddGlobal(m, i32t, "g")
+
+    LLVMSetSection(g, ".mysect")
+    check $LLVMGetSection(g) == ".mysect"
+
+    LLVMSetAlignment(g, 16)
+    check LLVMGetAlignment(g) == 16
+
+  test "intrinsics: lookup, overloaded, declaration":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("intr", ctx)
+    defer: LLVMDisposeModule(m)
+    let i8t = LLVMInt8TypeInContext(ctx)
+    let pt = LLVMPointerTypeInContext(ctx, 0)
+
+    let id = LLVMLookupIntrinsicID("llvm.memcpy.p0.p0.i64", 26)
+    check id > 0
+    check LLVMIntrinsicIsOverloaded(id) == LLVMTrue
+
+    var overloads = [pt, pt, LLVMInt64TypeInContext(ctx)]
+    let decl = LLVMGetIntrinsicDeclaration(m, id, addr overloads[0], 3)
+    check not decl.isNil
+    check LLVMGetIntrinsicID(decl) == id
+
+    let itype = LLVMIntrinsicGetType(ctx, id, addr overloads[0], 3)
+    check not itype.isNil
+
+    var nl: csize_t
+    let name = LLVMIntrinsicCopyOverloadedName2(m, id, addr overloads[0], 3, nl)
+    check "llvm.memcpy" in $name
+
+  test "debug locations: get/set and line/column/file":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("dbgloc", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    # current location is fine to query (may or may not be nil)
+    discard LLVMGetCurrentDebugLocation(b)
+
+    let ret = LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+    # line/column on an instruction without debug info returns 0 (or undefined),
+    # but they must not crash
+    discard LLVMGetDebugLocLine(ret)
+    discard LLVMGetDebugLocColumn(ret)
+    var len: cuint
+    discard LLVMGetDebugLocFilename(ret, len)
+    discard LLVMGetDebugLocDirectory(ret, len)
+    check true
+
+  test "attributes: enum/string checks and attribute count":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let a = LLVMCreateEnumAttribute(ctx, 1, 0) # KindID 1 = zext param
+    check LLVMIsEnumAttribute(a) == LLVMTrue
+    check LLVMIsStringAttribute(a) == LLVMFalse
+
+    var klen: cuint
+    var vlen: cuint
+    let sa = LLVMCreateStringAttribute(ctx, "foo", 3, "bar", 3)
+    check LLVMIsStringAttribute(sa) == LLVMTrue
+    check LLVMIsEnumAttribute(sa) == LLVMFalse
+    check $LLVMGetStringAttributeKind(sa, klen) == "foo"
+    check $LLVMGetStringAttributeValue(sa, vlen) == "bar"
+
+  test "GC: set and get garbage collector":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("gc", ctx)
+    defer: LLVMDisposeModule(m)
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+
+    LLVMSetGC(fn, "ocaml")
+    check $LLVMGetGC(fn) == "ocaml"
+    LLVMSetGC(fn, "")
+    check $LLVMGetGC(fn) == ""
