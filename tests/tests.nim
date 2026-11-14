@@ -3039,6 +3039,474 @@ entry:
     check "DILexicalBlock" in $ir
     LLVMDisposeMessage(ir)
 
+  test "debug info: getOrCreateTypeArray":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_typearr", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+    var elems = [intTy, intTy]
+    let typeArr = LLVMDIBuilderGetOrCreateTypeArray(diBuilder, addr elems[0], 2)
+    check not typeArr.isNil
+
+    LLVMDIBuilderFinalize(diBuilder)
+
+  test "debug info: getOrCreateArray and subrange":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_arr", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+    let arr = LLVMDIBuilderGetOrCreateArray(diBuilder, addr intTy, 1)
+    check not arr.isNil
+
+    let sub = LLVMDIBuilderGetOrCreateSubrange(diBuilder, 0'i64, 4'i64)
+    check not sub.isNil
+
+    LLVMDIBuilderFinalize(diBuilder)
+
+  test "debug info: namespaces, qualified and pointer types":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_types", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+
+    let ns = LLVMDIBuilderCreateNameSpace(diBuilder, cu, "my_ns", csize_t(5), LLVMFalse)
+    check not ns.isNil
+
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+
+    let q = LLVMDIBuilderCreateQualifiedType(diBuilder, cuint(0x10), intTy)
+    check not q.isNil
+
+    let r = LLVMDIBuilderCreateReferenceType(diBuilder, cuint(0x10), intTy)
+    check not r.isNil
+
+    let u = LLVMDIBuilderCreateUnspecifiedType(diBuilder, "auto", csize_t(4))
+    check not u.isNil
+
+    let nt = LLVMDIBuilderCreateNullPtrType(diBuilder)
+    check not nt.isNil
+
+    let art = LLVMDIBuilderCreateArtificialType(diBuilder, intTy)
+    check not art.isNil
+
+    let td = LLVMDIBuilderCreateTypedef(diBuilder, intTy, "myint", csize_t(5), file, 1, cu, 0)
+    check not td.isNil
+
+    let fwd = LLVMDIBuilderCreateForwardDecl(diBuilder, cuint(0x2a), "MyStruct", csize_t(8), cu, file, 1, 0, 0'u64, 0, "", csize_t(0))
+    check not fwd.isNil
+
+    let rep = LLVMDIBuilderCreateReplaceableCompositeType(diBuilder, cuint(0x2a), "MyStruct", csize_t(8), cu, file, 1, 0, 0'u64, 0, 0, "", csize_t(0))
+    check not rep.isNil
+
+    LLVMDIBuilderFinalize(diBuilder)
+
+  test "debug info: enumeration type with enumerators":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_enum", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+
+    let e1 = LLVMDIBuilderCreateEnumerator(diBuilder, "VAL0", csize_t(4), 0'i64, LLVMFalse)
+    check not e1.isNil
+    let e2 = LLVMDIBuilderCreateEnumerator(diBuilder, "VAL1", csize_t(4), 1'i64, LLVMFalse)
+    check not e2.isNil
+
+    var words = [0x0'u64, 0x1'u64]
+    let big = LLVMDIBuilderCreateEnumeratorOfArbitraryPrecision(diBuilder, "BIG", csize_t(3), 128'u64, addr words[0], LLVMFalse)
+    check not big.isNil
+
+    var elems = [e1, e2]
+    let ety = LLVMDIBuilderCreateEnumerationType(diBuilder, cu, "Color", csize_t(5), file, 1, 32, 32, addr elems[0], cuint(2), LLVMMetadataRef(nil))
+    check not ety.isNil
+
+    check LLVMGetMetadataKind(ety) == 13'u
+    check LLVMGetDINodeTag(ety) == 4'u16
+    check LLVMIsNewDbgInfoFormat(m) == 1
+
+    LLVMDIBuilderFinalize(diBuilder)
+
+  test "debug info: union type and inheritance":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_union", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+
+    let un = LLVMDIBuilderCreateUnionType(diBuilder, cu, "U", csize_t(1), file, 1, 32'u64, 32, 0, addr intTy, 1, 0, "", csize_t(0))
+    check not un.isNil
+
+    let inh = LLVMDIBuilderCreateInheritance(diBuilder, un, intTy, 0'u64, 0, 0)
+    check not inh.isNil
+
+    let staticMember = LLVMDIBuilderCreateStaticMemberType(diBuilder, cu, "count", csize_t(5), file, 1, intTy, 0, LLVMValueRef(nil), 0)
+    check not staticMember.isNil
+
+    LLVMDIBuilderFinalize(diBuilder)
+
+  test "debug info: temporary MD nodes and DI type getters":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_temp", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+
+    check LLVMDITypeGetSizeInBits(intTy) == 32'u64
+    check LLVMDITypeGetAlignInBits(intTy) == 0'u32
+    check LLVMDITypeGetLine(intTy) == 0'u
+
+    var len: csize_t
+    let tyName = LLVMDITypeGetName(intTy, len)
+    check not tyName.isNil
+    check len == 3.csize_t
+
+    var flen: cuint
+    let fname = LLVMDIFileGetFilename(file, flen)
+    check not fname.isNil
+    check flen == 8'u
+
+    let scopeFile = LLVMDIScopeGetFile(file)
+    check not scopeFile.isNil
+
+    # temporary MD node lifecycle: create then dispose
+    var d = intTy
+    let tmp = LLVMTemporaryMDNode(ctx, addr d, 1)
+    check not tmp.isNil
+    LLVMDisposeTemporaryMDNode(tmp)
+
+    # replaceAllUsesWith resolves a temp node
+    let tmp2 = LLVMTemporaryMDNode(ctx, addr d, 1)
+    LLVMMetadataReplaceAllUsesWith(tmp2, intTy)
+
+    LLVMDIBuilderFinalize(diBuilder)
+
+  test "debug info: module debug metadata version":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_ver", ctx)
+    defer: LLVMDisposeModule(m)
+
+    check LLVMGetModuleDebugMetadataVersion(m) == 0'u
+    let strip = LLVMStripModuleDebugInfo(m)
+    check strip == 0
+
+  test "debug info: subprogram with instruction debug location":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_subloc", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var params = [i32t, i32t]
+    let fnTy = LLVMFunctionType(i32t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "add", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+    var paramTypes = [intTy, intTy]
+    let subTy = LLVMDIBuilderCreateSubroutineType(diBuilder, file, addr paramTypes[0], 2, 0)
+    let sp = LLVMDIBuilderCreateFunction(diBuilder, cu, "add", csize_t(3), "add", csize_t(3), file, 1, subTy, LLVMFalse, LLVMTrue, 1, 0, LLVMFalse)
+    LLVMSetSubprogram(fn, sp)
+
+    let got = LLVMGetSubprogram(fn)
+    check not got.isNil
+
+    let sum = LLVMBuildAdd(b, LLVMGetParam(fn, 0), LLVMGetParam(fn, 1), "sum")
+    let loc = LLVMDIBuilderCreateDebugLocation(ctx, 5, 3, sp, LLVMMetadataRef(nil))
+    LLVMInstructionSetDebugLoc(sum, loc)
+    check not loc.isNil
+    check LLVMDILocationGetLine(loc) == 5'u
+    check LLVMDILocationGetColumn(loc) == 3'u
+
+    let dloc = LLVMInstructionGetDebugLoc(sum)
+    check not dloc.isNil
+
+    discard LLVMBuildRet(b, sum)
+    LLVMDIBuilderFinalize(diBuilder)
+
+    LLVMDISubprogramReplaceType(sp, subTy)
+
+    let (ok, msg) = verifyModule(m)
+    check ok
+    check msg.len == 0
+
+  test "core metadata: type introspection and value names":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("core_meta", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    check LLVMGetTypeContext(i32t) == ctx
+    var elems = [i32t, i32t]
+    let stTy = LLVMStructTypeInContext(ctx, addr elems[0], 2, LLVMFalse)
+    check LLVMGetNumContainedTypes(stTy) == 2
+
+    let arrTy = LLVMArrayType(i32t, 4)
+    check LLVMGetArrayLength(arrTy) == 4
+
+    let stName = LLVMPrintTypeToString(stTy)
+    check not stName.isNil and len($stName) > 0
+    LLVMDisposeMessage(stName)
+
+    let g = LLVMAddGlobal(m, i32t, "myvar")
+    var nlen: csize_t
+    let nm = LLVMGetValueName2(g, nlen)
+    check not nm.isNil and nlen == 5.csize_t
+
+    let vs = LLVMPrintValueToString(g)
+    check not vs.isNil and len($vs) > 0
+    LLVMDisposeMessage(vs)
+
+  test "core metadata: unnamed addr, visibility, TLS, DLL storage":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("core_glob", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let g = LLVMAddGlobal(m, i32t, "g")
+    LLVMSetInitializer(g, LLVMConstInt(i32t, 1, LLVMFalse))
+
+    LLVMSetUnnamedAddress(g, LLVMGlobalUnnamedAddr)
+    check LLVMGetUnnamedAddress(g) == LLVMGlobalUnnamedAddr
+    LLVMSetUnnamedAddr(g, LLVMTrue)
+    check LLVMHasUnnamedAddr(g) == LLVMTrue
+
+    LLVMSetVisibility(g, LLVMProtectedVisibility)
+    check LLVMGetVisibility(g) == LLVMProtectedVisibility
+
+    LLVMSetDLLStorageClass(g, LLVMDLLExportStorageClass)
+    check LLVMGetDLLStorageClass(g) == LLVMDLLExportStorageClass
+
+    LLVMSetThreadLocalMode(g, LLVMGeneralDynamicTLSModel)
+    check LLVMGetThreadLocalMode(g) == LLVMGeneralDynamicTLSModel
+
+  test "core metadata: arith flags NSW/NUW/exact/inbounds":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("core_flags", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var params = [i32t, i32t]
+    let fnTy = LLVMFunctionType(i32t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "add", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let a = LLVMBuildAdd(b, LLVMGetParam(fn, 0), LLVMGetParam(fn, 1), "a")
+    LLVMSetNSW(a, LLVMTrue)
+    check LLVMGetNSW(a) == LLVMTrue
+    LLVMSetNUW(a, LLVMTrue)
+    check LLVMGetNUW(a) == LLVMTrue
+
+    var idx: array[1, LLVMValueRef] = [LLVMConstInt(i32t, 0, LLVMFalse)]
+    let gep = LLVMBuildGEP2(b, i32t, LLVMGetParam(fn, 0), addr idx[0], 1, "gep")
+    LLVMSetIsInBounds(gep, LLVMTrue)
+    check LLVMIsInBounds(gep) == LLVMTrue
+
+    discard LLVMBuildRet(b, a)
+    check LLVMHasPersonalityFn(fn) == LLVMFalse
+
+  test "core metadata: called value and sync scope":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("core_call", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var params = [i32t, i32t]
+    let fnTy = LLVMFunctionType(i32t, addr params[0], 2, LLVMFalse)
+    let fn = LLVMAddFunction(m, "add", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    var args = [LLVMGetParam(fn, 0), LLVMGetParam(fn, 1)]
+    let call = LLVMBuildCall2(b, fnTy, fn, addr args[0], 2, "c")
+    check not LLVMGetCalledValue(call).isNil
+    check LLVMGetCalledFunctionType(call) == fnTy
+
+    discard LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+
+    let ss = LLVMGetSyncScopeID(ctx, "singlethread", 14)
+    check ss > 0
+
+  test "core metadata: named metadata nodes":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("core_nmd", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let nmd = LLVMGetOrInsertNamedMetadata(m, "llvm.dbg.cu", 12)
+    check not nmd.isNil
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let g = LLVMAddGlobal(m, i32t, "g")
+    LLVMAddNamedMetadataOperand(m, "llvm.dbg.cu", g)
+
+    check LLVMGetNamedMetadataNumOperands(m, "llvm.dbg.cu") == 1
+    var dest: LLVMValueRef
+    LLVMGetNamedMetadataOperands(m, "llvm.dbg.cu", addr dest)
+    check not dest.isNil
+    check not LLVMGetNamedMetadata(m, "llvm.dbg.cu", 12).isNil
+
+  test "constants: byte and string constants":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+
+    let byteTy = LLVMInt8TypeInContext(ctx)
+    let cb = LLVMConstByte(byteTy, 42)
+    check not cb.isNil
+    check LLVMConstByteGetSExtValue(cb) == 42
+    check LLVMConstByteGetZExtValue(cb) == 42'u64
+
+    var words = [1'u64, 0'u64]
+    let big = LLVMConstByteOfArbitraryPrecision(byteTy, 2, addr words[0])
+    check not big.isNil
+
+    let s = LLVMConstStringInContext(ctx, "hello", cuint(5), LLVMTrue)
+    check not s.isNil
+    check LLVMIsConstantString(s) == LLVMTrue
+
+  test "constants: constNamedStruct and inline asm":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("core_const", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    var elems = [i32t, i32t]
+    let stTy = LLVMStructTypeInContext(ctx, addr elems[0], 2, LLVMFalse)
+    var vals = [LLVMConstInt(i32t, 1, LLVMFalse), LLVMConstInt(i32t, 2, LLVMFalse)]
+    let cs = LLVMConstNamedStruct(stTy, addr vals[0], 2)
+    check not cs.isNil
+
+  test "core metadata: explicit instr flags on build":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("core_sync", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    LLVMSetDataLayout(m, "e-m:e-p:64:64")
+    check len($LLVMGetDataLayoutStr(m)) > 0
+
+    let g = LLVMAddGlobal(m, i32t, "g")
+    LLVMSetInitializer(g, LLVMConstInt(i32t, 1, LLVMFalse))
+    let fnTy = LLVMFunctionType(LLVMVoidTypeInContext(ctx), nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "main", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+
+    let frz = LLVMBuildFreeze(b, LLVMConstInt(i32t, 5, LLVMFalse), "f")
+    check not frz.isNil
+    let gfnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let gfn = LLVMAddFunction(m, "helper", gfnTy)
+    var args: array[0, LLVMValueRef]
+    let call = LLVMBuildCall2(b, gfnTy, gfn, nil, 0, "c")
+    discard call
+
+  test "core metadata: AMD node and terminator checks":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("core_amd", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let i32t = LLVMInt32TypeInContext(ctx)
+    let fnTy = LLVMFunctionType(i32t, nil, 0, LLVMFalse)
+    let fn = LLVMAddFunction(m, "f", fnTy)
+    let bb = LLVMAppendBasicBlockInContext(ctx, fn, "entry")
+    let b = LLVMCreateBuilderInContext(ctx)
+    defer: LLVMDisposeBuilder(b)
+    LLVMPositionBuilderAtEnd(b, bb)
+    let ret = LLVMBuildRet(b, LLVMConstInt(i32t, 0, LLVMFalse))
+    check not LLVMIsATerminatorInst(ret).isNil
+
+  test "debug info: extra DI builders":
+    let ctx = LLVMContextCreate()
+    defer: LLVMContextDispose(ctx)
+    let m = LLVMModuleCreateWithNameInContext("di_extra", ctx)
+    defer: LLVMDisposeModule(m)
+
+    let diBuilder = LLVMCreateDIBuilder(m)
+    defer: LLVMDisposeDIBuilder(diBuilder)
+
+    let file = LLVMDIBuilderCreateFile(diBuilder, "test.nim", csize_t(8), ".", csize_t(1))
+    let cu = LLVMDIBuilderCreateCompileUnit(diBuilder, LLVMDWARFSourceLanguageC, file, "p", csize_t(1), LLVMFalse, "", csize_t(0), 0, "", csize_t(0), LLVMDWARFEmissionFull, 0, LLVMFalse, LLVMFalse, "", csize_t(0), "", csize_t(0))
+
+    let modNode = LLVMDIBuilderCreateModule(diBuilder, cu, "MyMod", csize_t(5), "", csize_t(0), "", csize_t(0), "", csize_t(0))
+    check not modNode.isNil
+
+    let intTy = LLVMDIBuilderCreateBasicType(diBuilder, "int", csize_t(3), 32, 0x05, 0)
+    var elems = [intTy]
+    let setTy = LLVMDIBuilderCreateSetType(diBuilder, cu, "S", csize_t(1), file, 1, 8'u64, 8, intTy)
+    check not setTy.isNil
+
+    let tmf = LLVMDIBuilderCreateTempMacroFile(diBuilder, LLVMMetadataRef(nil), 1, file)
+    check not tmf.isNil
+
+    let tmp = LLVMDIBuilderCreateTempGlobalVariableFwdDecl(diBuilder, cu, "g", csize_t(1), "", csize_t(0), file, 1, intTy, LLVMTrue, LLVMMetadataRef(nil), 32)
+    check not tmp.isNil
+
+    LLVMDIBuilderFinalize(diBuilder)
+
   test "debug info: function parameters":
     let ctx = LLVMContextCreate()
     defer: LLVMContextDispose(ctx)

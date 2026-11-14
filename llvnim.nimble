@@ -1,6 +1,6 @@
 # Package
 
-version       = "1.2.0"
+version       = "1.3.0"
 author        = "xlebore3o4ka"
 description   = "Nim bindings for the LLVM-C API, version 23.1.x"
 license       = "MIT"

@@ -55,6 +55,7 @@ type
   LLVMValueRef*      = distinct pointer
   LLVMBasicBlockRef* = distinct pointer
   LLVMBuilderRef*    = distinct pointer
+  LLVMNamedMDNodeRef* = distinct pointer
 
   LLVMBool* = cint
   LLVMVerifierFailureAction* = cint
@@ -83,6 +84,7 @@ definePointerOps(LLVMTypeRef)
 definePointerOps(LLVMValueRef)
 definePointerOps(LLVMBasicBlockRef)
 definePointerOps(LLVMBuilderRef)
+definePointerOps(LLVMNamedMDNodeRef)
 
 proc LLVMContextCreate*(): LLVMContextRef {.llvmImport.}
   ## A single context is not thread-safe; use one context per thread.
@@ -690,6 +692,7 @@ proc LLVMBuildShuffleVector*(Builder: LLVMBuilderRef; V1: LLVMValueRef; V2: LLVM
 proc LLVMBuildFreeze*(Builder: LLVMBuilderRef; Val: LLVMValueRef; Name: cstring): LLVMValueRef {.llvmImport.}
 
 proc LLVMConstStructInContext*(C: LLVMContextRef; ConstantVals: ptr LLVMValueRef; Count: cuint; Packed: LLVMBool): LLVMValueRef {.llvmImport.}
+proc LLVMConstNamedStruct*(StructTy: LLVMTypeRef; ConstantVals: ptr LLVMValueRef; Count: cuint): LLVMValueRef {.llvmImport.}
 proc LLVMConstVector*(ScalarConstantVals: ptr LLVMValueRef; Size: cuint): LLVMValueRef {.llvmImport.}
 proc LLVMConstArray2*(ElementTy: LLVMTypeRef; ConstantVals: ptr LLVMValueRef; Length: uint64): LLVMValueRef {.llvmImport.}
 proc LLVMGetAggregateElement*(C: LLVMValueRef; Idx: cuint): LLVMValueRef {.llvmImport.}
@@ -828,7 +831,6 @@ proc LLVMCreateTargetMachine*(T: LLVMTargetRef; Triple: cstring; CPU: cstring; F
 proc LLVMDisposeTargetMachine*(T: LLVMTargetMachineRef) {.llvmImport.}
 
 proc LLVMSetTarget*(M: LLVMModuleRef; Triple: cstring) {.llvmImport.}
-proc LLVMSetDataLayout*(M: LLVMModuleRef; DataLayoutStr: cstring) {.llvmImport.}
 
 proc LLVMTargetMachineEmitToFile*(T: LLVMTargetMachineRef; M: LLVMModuleRef; Filename: cstring; codegen: LLVMCodeGenFileType; ErrorMessage: var cstring): LLVMBool {.llvmImport.}
 
@@ -970,6 +972,121 @@ proc LLVMDIBuilderCreateAutoVariable*(Builder: LLVMDIBuilderRef; Scope: LLVMMeta
 
 proc LLVMDIBuilderInsertDeclareRecordAtEnd*(Builder: LLVMDIBuilderRef; Storage: LLVMValueRef; VarInfo: LLVMMetadataRef; Expr: LLVMMetadataRef; DebugLoc: LLVMMetadataRef; Block: LLVMBasicBlockRef): LLVMDbgRecordRef {.llvmImport.}
 proc LLVMDIBuilderCreateExpression*(Builder: LLVMDIBuilderRef; Addr: ptr uint64; Length: csize_t): LLVMMetadataRef {.llvmImport.}
+
+# ---------------- debug info: extended DI type/enumerator helpers ----------------
+
+type
+  LLVMChecksumKind* {.size: sizeof(cint).} = enum
+    CSK_MD5 = 0
+    CSK_SHA1 = 1
+    CSK_SHA256 = 2
+
+  LLVMDWARFMacinfoRecordType* {.size: sizeof(cint).} = enum
+    LLVMDWARFMacinfoRecordTypeDefine = 0x01
+    LLVMDWARFMacinfoRecordTypeMacro = 0x02
+    LLVMDWARFMacinfoRecordTypeStartFile = 0x03
+    LLVMDWARFMacinfoRecordTypeEndFile = 0x04
+    LLVMDWARFMacinfoRecordTypeVendorExt = 0xff
+
+proc LLVMDIBuilderGetOrCreateTypeArray*(Builder: LLVMDIBuilderRef; Data: ptr LLVMMetadataRef; NumElements: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderGetOrCreateArray*(Builder: LLVMDIBuilderRef; Data: ptr LLVMMetadataRef; NumElements: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderGetOrCreateSubrange*(Builder: LLVMDIBuilderRef; LowerBound: int64; Count: int64): LLVMMetadataRef {.llvmImport.}
+
+proc LLVMDIBuilderFinalizeSubprogram*(Builder: LLVMDIBuilderRef; Subprogram: LLVMMetadataRef) {.llvmImport.}
+proc LLVMCreateDIBuilderDisallowUnresolved*(M: LLVMModuleRef): LLVMDIBuilderRef {.llvmImport.}
+
+# --- files / scopes / namespaces / labels ---
+
+proc LLVMDIBuilderCreateFileWithChecksum*(Builder: LLVMDIBuilderRef; Filename: cstring; FilenameLen: csize_t; Directory: cstring; DirectoryLen: csize_t; ChecksumKind: LLVMChecksumKind; Checksum: cstring; ChecksumLen: csize_t; Source: cstring; SourceLen: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateNameSpace*(Builder: LLVMDIBuilderRef; ParentScope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; ExportSymbols: LLVMBool): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateLexicalBlockFile*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; File: LLVMMetadataRef; Discriminator: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateLabel*(Builder: LLVMDIBuilderRef; Context: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNo: cuint; AlwaysPreserve: LLVMBool): LLVMMetadataRef {.llvmImport.}
+
+# --- types: qualifiers / typedefs / pointers / null ---
+
+proc LLVMDIBuilderCreateTypedef*(Builder: LLVMDIBuilderRef; Ty: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNo: cuint; Scope: LLVMMetadataRef; AlignInBits: uint32): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateQualifiedType*(Builder: LLVMDIBuilderRef; Tag: cuint; Ty: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateReferenceType*(Builder: LLVMDIBuilderRef; Tag: cuint; Ty: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateUnspecifiedType*(Builder: LLVMDIBuilderRef; Name: cstring; NameLen: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateNullPtrType*(Builder: LLVMDIBuilderRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateObjectPointerType*(Builder: LLVMDIBuilderRef; Ty: LLVMMetadataRef; Implicit: LLVMBool): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateArtificialType*(Builder: LLVMDIBuilderRef; Ty: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateMemberPointerType*(Builder: LLVMDIBuilderRef; PointeeType: LLVMMetadataRef; ClassType: LLVMMetadataRef; SizeInBits: uint64; AlignInBits: cuint; Flags: cuint): LLVMMetadataRef {.llvmImport.}
+
+proc LLVMDIBuilderCreateForwardDecl*(Builder: LLVMDIBuilderRef; Tag: cuint; Name: cstring; NameLen: csize_t; Scope: LLVMMetadataRef; File: LLVMMetadataRef; Line: cuint; RuntimeLang: cuint; SizeInBits: uint64; AlignInBits: cuint; UniqueIdentifier: cstring; UniqueIdentifierLen: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateReplaceableCompositeType*(Builder: LLVMDIBuilderRef; Tag: cuint; Name: cstring; NameLen: csize_t; Scope: LLVMMetadataRef; File: LLVMMetadataRef; Line: cuint; RuntimeLang: cuint; SizeInBits: uint64; AlignInBits: cuint; Flags: cuint; UniqueIdentifier: cstring; UniqueIdentifierLen: csize_t): LLVMMetadataRef {.llvmImport.}
+
+# --- enumerations / unions ---
+
+proc LLVMDIBuilderCreateEnumerator*(Builder: LLVMDIBuilderRef; Name: cstring; NameLen: csize_t; Value: int64; IsUnsigned: LLVMBool): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateEnumeratorOfArbitraryPrecision*(Builder: LLVMDIBuilderRef; Name: cstring; NameLen: csize_t; SizeInBits: uint64; Words: ptr uint64; IsUnsigned: LLVMBool): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateEnumerationType*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNumber: cuint; SizeInBits: uint64; AlignInBits: cuint; Elements: ptr LLVMMetadataRef; NumElements: cuint; ClassTy: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateUnionType*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNumber: cuint; SizeInBits: uint64; AlignInBits: cuint; Flags: cuint; Elements: ptr LLVMMetadataRef; NumElements: cuint; RunTimeLang: cuint; UniqueId: cstring; UniqueIdLen: csize_t): LLVMMetadataRef {.llvmImport.}
+
+# --- classes / inheritance / members ---
+
+proc LLVMDIBuilderCreateInheritance*(Builder: LLVMDIBuilderRef; Ty: LLVMMetadataRef; BaseTy: LLVMMetadataRef; BaseOffset: uint64; VBPtrOffset: cuint; Flags: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateStaticMemberType*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNumber: cuint; Ty: LLVMMetadataRef; Flags: cuint; ConstantVal: LLVMValueRef; AlignInBits: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateBitFieldMemberType*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNumber: cuint; SizeInBits: uint64; OffsetInBits: uint64; StorageOffsetInBits: uint64; Flags: cuint; Ty: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateClassType*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNumber: cuint; SizeInBits: uint64; AlignInBits: cuint; OffsetInBits: uint64; Flags: cuint; DerivedFrom: LLVMMetadataRef; Elements: ptr LLVMMetadataRef; NumElements: cuint; VTableHolder: LLVMMetadataRef; TemplateParamsNode: LLVMMetadataRef; UniqueIdentifier: cstring; UniqueIdentifierLen: csize_t): LLVMMetadataRef {.llvmImport.}
+
+# --- vectors / dynamic arrays / constant exprs ---
+
+proc LLVMDIBuilderCreateVectorType*(Builder: LLVMDIBuilderRef; Size: uint64; AlignInBits: cuint; Ty: LLVMMetadataRef; Subscripts: ptr LLVMMetadataRef; NumSubscripts: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateDynamicArrayType*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; LineNo: cuint; File: LLVMMetadataRef; Size: uint64; AlignInBits: cuint; Ty: LLVMMetadataRef; Subscripts: ptr LLVMMetadataRef; NumSubscripts: cuint; DataLocation: LLVMMetadataRef; Associated: LLVMMetadataRef; Allocated: LLVMMetadataRef; Rank: LLVMMetadataRef; BitStride: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateConstantValueExpression*(Builder: LLVMDIBuilderRef; Value: uint64): LLVMMetadataRef {.llvmImport.}
+
+# --- imports / objc ---
+
+proc LLVMDIBuilderCreateImportedModuleFromNamespace*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; NS: LLVMMetadataRef; File: LLVMMetadataRef; Line: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateImportedModuleFromModule*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; M: LLVMMetadataRef; File: LLVMMetadataRef; Line: cuint; Elements: ptr LLVMMetadataRef; NumElements: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateImportedDeclaration*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Decl: LLVMMetadataRef; File: LLVMMetadataRef; Line: cuint; Name: cstring; NameLen: csize_t; Elements: ptr LLVMMetadataRef; NumElements: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateObjCProperty*(Builder: LLVMDIBuilderRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNo: cuint; GetterName: cstring; GetterNameLen: csize_t; SetterName: cstring; SetterNameLen: csize_t; PropertyAttributes: cuint; Ty: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateObjCIVar*(Builder: LLVMDIBuilderRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNo: cuint; SizeInBits: uint64; AlignInBits: cuint; OffsetInBits: uint64; Flags: cuint; Ty: LLVMMetadataRef; PropertyNode: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+
+# ---------------- debug info: metadata accessors ----------------
+
+proc LLVMGetSubprogram*(Func: LLVMValueRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMInstructionSetDebugLoc*(Inst: LLVMValueRef; Loc: LLVMMetadataRef) {.llvmImport.}
+proc LLVMGetDINodeTag*(MD: LLVMMetadataRef): uint16 {.llvmImport.}
+proc LLVMGetMetadataKind*(Metadata: LLVMMetadataRef): cuint {.llvmImport.}
+proc LLVMGetModuleDebugMetadataVersion*(Module: LLVMModuleRef): cuint {.llvmImport.}
+proc LLVMDebugMetadataVersion*(): cuint {.llvmImport.}
+proc LLVMStripModuleDebugInfo*(Module: LLVMModuleRef): LLVMBool {.llvmImport.}
+proc LLVMIsNewDbgInfoFormat*(M: LLVMModuleRef): LLVMBool {.llvmImport.}
+
+# --- temporary MD nodes ---
+
+proc LLVMTemporaryMDNode*(Ctx: LLVMContextRef; Data: ptr LLVMMetadataRef; NumElements: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMDisposeTemporaryMDNode*(TempNode: LLVMMetadataRef) {.llvmImport.}
+proc LLVMMetadataReplaceAllUsesWith*(TempTargetMetadata: LLVMMetadataRef; Replacement: LLVMMetadataRef) {.llvmImport.}
+
+# --- metadata getters: location / file / type / variable ---
+
+proc LLVMDILocationGetLine*(Location: LLVMMetadataRef): cuint {.llvmImport.}
+proc LLVMDILocationGetColumn*(Location: LLVMMetadataRef): cuint {.llvmImport.}
+proc LLVMDILocationGetScope*(Location: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDILocationGetInlinedAt*(Location: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+
+proc LLVMDIFileGetDirectory*(File: LLVMMetadataRef; Len: var cuint): cstring {.llvmImport.}
+proc LLVMDIFileGetFilename*(File: LLVMMetadataRef; Len: var cuint): cstring {.llvmImport.}
+proc LLVMDIFileGetSource*(File: LLVMMetadataRef; Len: var cuint): cstring {.llvmImport.}
+proc LLVMDIScopeGetFile*(Scope: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+
+proc LLVMDITypeGetName*(DType: LLVMMetadataRef; Length: var csize_t): cstring {.llvmImport.}
+proc LLVMDITypeGetSizeInBits*(DType: LLVMMetadataRef): uint64 {.llvmImport.}
+proc LLVMDITypeGetOffsetInBits*(DType: LLVMMetadataRef): uint64 {.llvmImport.}
+proc LLVMDITypeGetAlignInBits*(DType: LLVMMetadataRef): uint32 {.llvmImport.}
+proc LLVMDITypeGetFlags*(DType: LLVMMetadataRef): cuint {.llvmImport.}
+proc LLVMDITypeGetLine*(DType: LLVMMetadataRef): cuint {.llvmImport.}
+
+proc LLVMDISubprogramGetLine*(Subprogram: LLVMMetadataRef): cuint {.llvmImport.}
+proc LLVMDISubprogramReplaceType*(Subprogram: LLVMMetadataRef; SubroutineType: LLVMMetadataRef) {.llvmImport.}
+
+proc LLVMDIVariableGetFile*(Var: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIVariableGetScope*(Var: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIVariableGetLine*(Var: LLVMMetadataRef): cuint {.llvmImport.}
+
 
 proc LLVMLinkModules2*(Dest: LLVMModuleRef; Src: LLVMModuleRef): LLVMBool {.llvmImport.}
   ## Links Src into Dest. On success, Dest owns Src's contents, and Src is destroyed.
@@ -1280,7 +1397,6 @@ proc LLVMGetIntTypeWidth*(IntegerTy: LLVMTypeRef): cuint {.llvmImport.}
 
 # ---------------- constants ----------------
 
-proc LLVMConstNamedStruct*(StructTy: LLVMTypeRef; ConstantVals: ptr LLVMValueRef; Count: cuint): LLVMValueRef {.llvmImport.}
 proc LLVMConstDataArray*(ElementTy: LLVMTypeRef; Data: cstring; SizeInBytes: csize_t): LLVMValueRef {.llvmImport.}
 proc LLVMConstIntOfString*(IntTy: LLVMTypeRef; Text: cstring; Radix: uint8): LLVMValueRef {.llvmImport.}
 proc LLVMConstIntOfStringAndSize*(IntTy: LLVMTypeRef; Text: cstring; SLen: cuint; Radix: uint8): LLVMValueRef {.llvmImport.}
@@ -1298,6 +1414,7 @@ proc LLVMSetModuleIdentifier*(M: LLVMModuleRef; Ident: cstring; Len: csize_t) {.
 proc LLVMGetSourceFileName*(M: LLVMModuleRef; Len: var csize_t): cstring {.llvmImport.}
 proc LLVMSetSourceFileName*(M: LLVMModuleRef; Name: cstring; Len: csize_t) {.llvmImport.}
 proc LLVMGetDataLayoutStr*(M: LLVMModuleRef): cstring {.llvmImport.}
+proc LLVMSetDataLayout*(M: LLVMModuleRef; DataLayoutStr: cstring) {.llvmImport.}
   ## Preferred over the deprecated LLVMGetDataLayout.
 
 proc LLVMGetModuleInlineAsm*(M: LLVMModuleRef; Len: var csize_t): cstring {.llvmImport.}
@@ -1545,7 +1662,6 @@ proc LLVMGetNumIndices*(Inst: LLVMValueRef): cuint {.llvmImport.}
 proc LLVMGetIndices*(Inst: LLVMValueRef): ptr cuint {.llvmImport.}
 
 proc LLVMGetAtomicRMWBinOp*(AtomicRMWInst: LLVMValueRef): LLVMAtomicRMWBinOp {.llvmImport.}
-proc LLVMGetAtomicSyncScopeID*(AtomicInst: LLVMValueRef): cuint {.llvmImport.}
 proc LLVMGetOrdering*(MemoryAccessInst: LLVMValueRef): LLVMAtomicOrdering {.llvmImport.}
 proc LLVMGetVolatile*(Inst: LLVMValueRef): LLVMBool {.llvmImport.}
 proc LLVMGetWeak*(CmpXchgInst: LLVMValueRef): LLVMBool {.llvmImport.}
@@ -1609,3 +1725,157 @@ proc LLVMGetIntrinsicDeclaration*(Mod: LLVMModuleRef; ID: cuint; OverloadTypes: 
 proc LLVMIntrinsicIsOverloaded*(ID: cuint): LLVMBool {.llvmImport.}
 proc LLVMIntrinsicGetType*(Ctx: LLVMContextRef; ID: cuint; OverloadTypes: ptr LLVMTypeRef; OverloadCount: csize_t): LLVMTypeRef {.llvmImport.}
 proc LLVMIntrinsicCopyOverloadedName2*(M: LLVMModuleRef; ID: cuint; OverloadTypes: ptr LLVMTypeRef; OverloadCount: csize_t; NameLength: var csize_t): cstring {.llvmImport.}
+# ---------------- metadata: names / values / diagnostics ----------------
+
+proc LLVMSetValueName*(Val: LLVMValueRef; Name: cstring) {.llvmImport.}
+proc LLVMHasUnnamedAddr*(Global: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMSetUnnamedAddr*(Global: LLVMValueRef; HasUnnamedAddr: LLVMBool) {.llvmImport.}
+
+proc LLVMGetTypeContext*(Ty: LLVMTypeRef): LLVMContextRef {.llvmImport.}
+proc LLVMGetTypeByName*(M: LLVMModuleRef; Name: cstring): LLVMTypeRef {.llvmImport.}
+proc LLVMGetArrayLength*(ArrayTy: LLVMTypeRef): cuint {.llvmImport.}
+proc LLVMPrintTypeToString*(Val: LLVMTypeRef): cstring {.llvmImport.}
+proc LLVMDumpValue*(Val: LLVMValueRef) {.llvmImport.}
+proc LLVMDumpType*(Val: LLVMTypeRef) {.llvmImport.}
+proc LLVMReplaceAllUsesWith*(OldVal: LLVMValueRef; NewVal: LLVMValueRef) {.llvmImport.}
+
+type
+  LLVMThreadLocalMode* {.size: sizeof(cint).} = enum
+    LLVMNotThreadLocal = 0
+    LLVMGeneralDynamicTLSModel = 1
+    LLVMLocalDynamicTLSModel = 2
+    LLVMInitialExecTLSModel = 3
+    LLVMLocalExecTLSModel = 4
+
+proc LLVMGetThreadLocalMode*(GlobalVar: LLVMValueRef): LLVMThreadLocalMode {.llvmImport.}
+proc LLVMSetThreadLocalMode*(GlobalVar: LLVMValueRef; Mode: LLVMThreadLocalMode) {.llvmImport.}
+
+type
+  LLVMInlineAsmDialect* {.size: sizeof(cint).} = enum
+    LLVMInlineAsmDialectATT = 0
+    LLVMInlineAsmDialectIntel = 1
+
+proc LLVMGetInlineAsm*(Ty: LLVMTypeRef; AsmString: cstring; AsmStringSize: csize_t; Constraints: cstring; ConstraintsSize: csize_t; HasSideEffects: LLVMBool; IsAlignStack: LLVMBool; Dialect: LLVMInlineAsmDialect; CanThrow: LLVMBool): LLVMValueRef {.llvmImport.}
+
+# --- atomic ordering / attributes / metadata accessors ---
+
+proc LLVMGetSyncScopeID*(C: LLVMContextRef; Name: cstring; SLen: csize_t): cuint {.llvmImport.}
+proc LLVMSetOrdering*(MemoryAccessInst: LLVMValueRef; Ordering: LLVMAtomicOrdering) {.llvmImport.}
+proc LLVMGetCmpXchgSuccessOrdering*(CmpXchgInst: LLVMValueRef): LLVMAtomicOrdering {.llvmImport.}
+proc LLVMSetCmpXchgSuccessOrdering*(CmpXchgInst: LLVMValueRef; Ordering: LLVMAtomicOrdering) {.llvmImport.}
+proc LLVMGetCmpXchgFailureOrdering*(CmpXchgInst: LLVMValueRef): LLVMAtomicOrdering {.llvmImport.}
+proc LLVMSetCmpXchgFailureOrdering*(CmpXchgInst: LLVMValueRef; Ordering: LLVMAtomicOrdering) {.llvmImport.}
+proc LLVMSetAtomicSingleThread*(AtomicInst: LLVMValueRef; SingleThread: LLVMBool) {.llvmImport.}
+proc LLVMIsAtomicSingleThread*(AtomicInst: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMSetAtomicSyncScopeID*(AtomicInst: LLVMValueRef; SSID: cuint) {.llvmImport.}
+proc LLVMSetAtomicRMWBinOp*(AtomicRMWInst: LLVMValueRef; BinOp: LLVMAtomicRMWBinOp) {.llvmImport.}
+proc LLVMGetLastEnumAttributeKind*(): cuint {.llvmImport.}
+proc LLVMGetStringAttributeAtIndex*(F: LLVMValueRef; Idx: cuint; K: cstring; KLen: csize_t): LLVMAttributeRef {.llvmImport.}
+proc LLVMRemoveStringAttributeAtIndex*(F: LLVMValueRef; Idx: cuint; K: cstring; KLen: csize_t) {.llvmImport.}
+proc LLVMSetParamAlignment*(Arg: LLVMValueRef; Align: cuint) {.llvmImport.}
+
+# --- instruction operand helpers ---
+
+proc LLVMGetArgOperand*(Funclet: LLVMValueRef; i: cuint): LLVMValueRef {.llvmImport.}
+proc LLVMSetArgOperand*(Funclet: LLVMValueRef; i: cuint; value: LLVMValueRef) {.llvmImport.}
+proc LLVMGetNumArgOperands*(Instr: LLVMValueRef): cuint {.llvmImport.}
+proc LLVMGetCalledValue*(Instr: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMGetCalledFunctionType*(C: LLVMValueRef): LLVMTypeRef {.llvmImport.}
+proc LLVMGetPersonalityFn*(Fn: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMSetPersonalityFn*(Fn: LLVMValueRef; PersonalityFn: LLVMValueRef) {.llvmImport.}
+proc LLVMHasPersonalityFn*(Fn: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMGetPrefixData*(Fn: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMSetPrefixData*(Fn: LLVMValueRef; prefixData: LLVMValueRef) {.llvmImport.}
+proc LLVMHasPrefixData*(Fn: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMGetPrologueData*(Fn: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMSetPrologueData*(Fn: LLVMValueRef; prologueData: LLVMValueRef) {.llvmImport.}
+proc LLVMHasPrologueData*(Fn: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMGetParentCatchSwitch*(CatchPad: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMSetParentCatchSwitch*(CatchPad: LLVMValueRef; CatchSwitch: LLVMValueRef) {.llvmImport.}
+
+# --- instruction flag mutators (arith / exact / disjoint / inbounds) ---
+
+proc LLVMSetNSW*(ArithInst: LLVMValueRef; HasNSW: LLVMBool) {.llvmImport.}
+proc LLVMSetNUW*(ArithInst: LLVMValueRef; HasNUW: LLVMBool) {.llvmImport.}
+proc LLVMSetExact*(DivOrShrInst: LLVMValueRef; IsExact: LLVMBool) {.llvmImport.}
+proc LLVMSetIsInBounds*(GEP: LLVMValueRef; InBounds: LLVMBool) {.llvmImport.}
+proc LLVMIsInBounds*(GEP: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMSetIsDisjoint*(Inst: LLVMValueRef; IsDisjoint: LLVMBool) {.llvmImport.}
+proc LLVMSetVolatile*(MemoryAccessInst: LLVMValueRef; IsVolatile: LLVMBool) {.llvmImport.}
+proc LLVMIsTailCall*(CallInst: LLVMValueRef): LLVMBool {.llvmImport.}
+
+# --- global visibility / dll storage ---
+
+proc LLVMSetVisibility*(Global: LLVMValueRef; Viz: LLVMVisibility) {.llvmImport.}
+proc LLVMSetDLLStorageClass*(Global: LLVMValueRef; Class: LLVMDLLStorageClass) {.llvmImport.}
+
+# --- metadata nodes ---
+
+proc LLVMGetMDNodeNumOperands*(V: LLVMValueRef): cuint {.llvmImport.}
+proc LLVMGetMDNodeOperands*(V: LLVMValueRef; Dest: ptr LLVMValueRef) {.llvmImport.}
+proc LLVMHasMetadata*(Val: LLVMValueRef): cint {.llvmImport.}
+proc LLVMGetNamedMetadata*(M: LLVMModuleRef; Name: cstring; NameLen: csize_t): LLVMNamedMDNodeRef {.llvmImport.}
+proc LLVMGetOrInsertNamedMetadata*(M: LLVMModuleRef; Name: cstring; NameLen: csize_t): LLVMNamedMDNodeRef {.llvmImport.}
+proc LLVMGetNamedMetadataNumOperands*(M: LLVMModuleRef; Name: cstring): cuint {.llvmImport.}
+proc LLVMGetNamedMetadataOperands*(M: LLVMModuleRef; Name: cstring; Dest: ptr LLVMValueRef) {.llvmImport.}
+
+# ---------------- constants: byte / strings / inline asm ----------------
+
+const
+  LLVMGEPFlagInBounds* = (1 shl 0)
+  LLVMGEPFlagNUSW* = (1 shl 1)
+  LLVMGEPFlagNUW* = (1 shl 2)
+
+proc LLVMConstByte*(ByteTy: LLVMTypeRef; N: uint64): LLVMValueRef {.llvmImport.}
+proc LLVMConstByteOfStringAndSize*(ByteTy: LLVMTypeRef; Text: cstring; SLen: csize_t; Radix: uint8): LLVMValueRef {.llvmImport.}
+proc LLVMConstByteGetSExtValue*(ConstantVal: LLVMValueRef): int64 {.llvmImport.}
+proc LLVMConstByteGetZExtValue*(ConstantVal: LLVMValueRef): uint64 {.llvmImport.}
+proc LLVMConstByteOfArbitraryPrecision*(ByteTy: LLVMTypeRef; NumWords: cuint; Words: ptr uint64): LLVMValueRef {.llvmImport.}
+proc LLVMConstStringInContext*(C: LLVMContextRef; Str: cstring; Length: cuint; DontNullTerminate: LLVMBool): LLVMValueRef {.llvmImport.}
+proc LLVMIsConstantString*(c: LLVMValueRef): LLVMBool {.llvmImport.}
+proc LLVMConstInlineAsm*(Ty: LLVMTypeRef; AsmString: cstring; Constraints: cstring; HasSideEffects: LLVMBool; IsAlignStack: LLVMBool): LLVMValueRef {.llvmImport.}
+
+# --- GEP no-wrap and shuffle mask helpers ---
+
+proc LLVMGEPGetNoWrapFlags*(GEP: LLVMValueRef): cuint {.llvmImport.}
+proc LLVMGEPSetNoWrapFlags*(GEP: LLVMValueRef; NoWrapFlags: cuint) {.llvmImport.}
+proc LLVMGetMaskValue*(ShuffleVectorInst: LLVMValueRef; Elt: cuint): cint {.llvmImport.}
+proc LLVMGetNumMaskElements*(ShuffleVectorInst: LLVMValueRef): cuint {.llvmImport.}
+
+# --- atomic sync scope builders ---
+
+proc LLVMBuildFenceSyncScope*(B: LLVMBuilderRef; ordering: LLVMAtomicOrdering; SSID: cuint; Name: cstring): LLVMValueRef {.llvmImport.}
+proc LLVMBuildAtomicRMWSyncScope*(B: LLVMBuilderRef; op: LLVMAtomicRMWBinOp; PTR: LLVMValueRef; Val: LLVMValueRef; ordering: LLVMAtomicOrdering; SSID: cuint): LLVMValueRef {.llvmImport.}
+proc LLVMBuildAtomicCmpXchgSyncScope*(B: LLVMBuilderRef; Ptr: LLVMValueRef; Cmp: LLVMValueRef; New: LLVMValueRef; SuccessOrdering: LLVMAtomicOrdering; FailureOrdering: LLVMAtomicOrdering; SSID: cuint): LLVMValueRef {.llvmImport.}
+
+# --- metadata: AMD node/string / terminator truth ---
+
+proc LLVMIsAMDNode*(Val: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMIsAMDString*(Val: LLVMValueRef): LLVMValueRef {.llvmImport.}
+proc LLVMIsATerminatorInst*(Inst: LLVMValueRef): LLVMValueRef {.llvmImport.}
+
+# ---------------- debug info: extra DI builders ----------------
+
+type
+  LLVMDbgRecordKind* {.size: sizeof(cint).} = enum
+    LLVMDbgRecordLabel = 0
+    LLVMDbgRecordDeclare = 1
+    LLVMDbgRecordValue = 2
+    LLVMDbgRecordAssign = 3
+
+proc LLVMDIBuilderCreateImportedModuleFromAlias*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; ImportedEntity: LLVMMetadataRef; File: LLVMMetadataRef; Line: cuint; Elements: ptr LLVMMetadataRef; NumElements: cuint): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateModule*(Builder: LLVMDIBuilderRef; ParentScope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; ConfigMacros: cstring; ConfigMacrosLen: csize_t; IncludePath: cstring; IncludePathLen: csize_t; APINotesFile: cstring; APINotesFileLen: csize_t): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateSetType*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; File: LLVMMetadataRef; LineNumber: cuint; SizeInBits: uint64; AlignInBits: uint32; BaseTy: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateTempGlobalVariableFwdDecl*(Builder: LLVMDIBuilderRef; Scope: LLVMMetadataRef; Name: cstring; NameLen: csize_t; Linkage: cstring; LnkLen: csize_t; File: LLVMMetadataRef; LineNo: cuint; Ty: LLVMMetadataRef; LocalToUnit: LLVMBool; Decl: LLVMMetadataRef; AlignInBits: uint32): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderCreateTempMacroFile*(Builder: LLVMDIBuilderRef; ParentMacroFile: LLVMMetadataRef; Line: cuint; File: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIBuilderInsertLabelAtEnd*(Builder: LLVMDIBuilderRef; LabelInfo: LLVMMetadataRef; Location: LLVMMetadataRef; InsertAtEnd: LLVMBasicBlockRef): LLVMDbgRecordRef {.llvmImport.}
+proc LLVMDIBuilderInsertLabelBefore*(Builder: LLVMDIBuilderRef; LabelInfo: LLVMMetadataRef; Location: LLVMMetadataRef; InsertBefore: LLVMValueRef): LLVMDbgRecordRef {.llvmImport.}
+proc LLVMDIBuilderInsertDbgValueRecordAtEnd*(Builder: LLVMDIBuilderRef; Val: LLVMValueRef; VarInfo: LLVMMetadataRef; Expr: LLVMMetadataRef; DebugLoc: LLVMMetadataRef; Block: LLVMBasicBlockRef): LLVMDbgRecordRef {.llvmImport.}
+proc LLVMDIBuilderInsertDbgValueRecordBefore*(Builder: LLVMDIBuilderRef; Val: LLVMValueRef; VarInfo: LLVMMetadataRef; Expr: LLVMMetadataRef; DebugLoc: LLVMMetadataRef; Instr: LLVMValueRef): LLVMDbgRecordRef {.llvmImport.}
+proc LLVMDbgRecordGetKind*(Rec: LLVMDbgRecordRef): LLVMDbgRecordKind {.llvmImport.}
+proc LLVMDbgRecordGetDebugLoc*(Rec: LLVMDbgRecordRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDbgVariableRecordGetValue*(Rec: LLVMDbgRecordRef; OpIdx: cuint): LLVMValueRef {.llvmImport.}
+proc LLVMDbgVariableRecordGetVariable*(Rec: LLVMDbgRecordRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDbgVariableRecordGetExpression*(Rec: LLVMDbgRecordRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIGlobalVariableExpressionGetVariable*(GVE: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
+proc LLVMDIGlobalVariableExpressionGetExpression*(GVE: LLVMMetadataRef): LLVMMetadataRef {.llvmImport.}
